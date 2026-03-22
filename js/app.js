@@ -39,6 +39,9 @@ export const state = {
   recentlyInserted: new Set(), // realtime dedup
 };
 
+// Flag to prevent boot() running while signup DB setup is in progress
+let isSigningUp = false;
+
 // Shorthand getters
 export function currency() { return state.household?.currency || 'Kč'; }
 export function cycleMode() { return state.prefs.cycle_mode || 'month'; }
@@ -455,6 +458,7 @@ async function handleSignup(e) {
   const errEl = document.getElementById('signup-error');
   errEl.classList.add('hidden');
   btn.disabled = true; btn.textContent = 'Creating…';
+  isSigningUp = true;
 
   const name     = document.getElementById('signup-name').value.trim();
   const email    = document.getElementById('signup-email').value.trim();
@@ -462,28 +466,29 @@ async function handleSignup(e) {
   const isJoin   = document.getElementById('choice-join').classList.contains('active');
 
   if (!name || !email || !password) {
+    isSigningUp = false;
     showSignupError(errEl, btn, 'Please fill in all fields.');
     return;
   }
 
   const { data: authData, error: authErr } = await supabase.auth.signUp({ email, password });
-  if (authErr) { showSignupError(errEl, btn, authErr.message); return; }
+  if (authErr) { isSigningUp = false; showSignupError(errEl, btn, authErr.message); return; }
   const userId = authData.user.id;
 
   let householdId;
   if (isJoin) {
     const code = document.getElementById('signup-invite').value.trim().toUpperCase();
     const { data: hh, error: hhErr } = await supabase.from('households').select('id').eq('invite_code', code).single();
-    if (hhErr || !hh) { showSignupError(errEl, btn, 'Invite code not found. Check and try again.'); return; }
+    if (hhErr || !hh) { isSigningUp = false; showSignupError(errEl, btn, 'Invite code not found. Check and try again.'); return; }
     householdId = hh.id;
   } else {
     const hhName = document.getElementById('signup-household').value.trim();
     const currency = document.getElementById('signup-currency').value.trim() || 'Kč';
-    if (!hhName) { showSignupError(errEl, btn, 'Please enter a household name.'); return; }
+    if (!hhName) { isSigningUp = false; showSignupError(errEl, btn, 'Please enter a household name.'); return; }
     const { data: hh, error: hhErr } = await supabase.from('households').insert({
       name: hhName, invite_code: generateInviteCode(), currency,
     }).select().single();
-    if (hhErr) { showSignupError(errEl, btn, hhErr.message); return; }
+    if (hhErr) { isSigningUp = false; showSignupError(errEl, btn, hhErr.message); return; }
     householdId = hh.id;
     // Create household_settings
     await supabase.from('household_settings').insert({ household_id: householdId, theme: {}, account_order: [] });
@@ -492,11 +497,18 @@ async function handleSignup(e) {
   const { error: profErr } = await supabase.from('profiles').insert({
     id: userId, household_id: householdId, display_name: name, preferences: {},
   });
-  if (profErr) { showSignupError(errEl, btn, profErr.message); return; }
+  if (profErr) { isSigningUp = false; showSignupError(errEl, btn, profErr.message); return; }
 
-  // Sign in
-  const { error: loginErr } = await supabase.auth.signInWithPassword({ email, password });
-  if (loginErr) { showSignupError(errEl, btn, loginErr.message); return; }
+  // All DB setup done — now boot the app
+  isSigningUp = false;
+  const { data: { session } } = await supabase.auth.getSession();
+  if (session?.user) {
+    await boot(session.user);
+  } else {
+    // Fallback: sign in explicitly
+    const { error: loginErr } = await supabase.auth.signInWithPassword({ email, password });
+    if (loginErr) { showSignupError(errEl, btn, loginErr.message); return; }
+  }
 }
 
 function showSignupError(errEl, btn, msg) {
@@ -624,6 +636,7 @@ async function init() {
   supabase.auth.onAuthStateChange(async (event, session) => {
     console.log('[auth] event:', event, 'user:', session?.user?.email);
     if (event === 'SIGNED_IN' && session?.user) {
+      if (isSigningUp) return; // signup flow handles boot manually
       await boot(session.user);
     } else if (event === 'SIGNED_OUT') {
       showAuthScreen();
