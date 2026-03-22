@@ -298,7 +298,41 @@ CREATE POLICY "forecast_snapshots_all" ON forecast_snapshots
   WITH CHECK (household_id = get_my_household_id());
 
 -- ================================================================
--- STEP 8: GRANTS (required for RLS to work via API)
+-- STEP 8: SIGNUP HELPER FUNCTIONS (SECURITY DEFINER — bypass RLS)
+-- ================================================================
+CREATE OR REPLACE FUNCTION setup_household(
+  p_user_id uuid, p_household_name text, p_invite_code text,
+  p_currency text, p_display_name text
+)
+RETURNS uuid AS $$
+DECLARE v_id uuid;
+BEGIN
+  INSERT INTO households (name, invite_code, currency)
+  VALUES (p_household_name, p_invite_code, p_currency) RETURNING id INTO v_id;
+  INSERT INTO household_settings (household_id, theme, account_order)
+  VALUES (v_id, '{}'::jsonb, '[]'::jsonb);
+  INSERT INTO profiles (id, household_id, display_name, preferences)
+  VALUES (p_user_id, v_id, p_display_name, '{}'::jsonb);
+  RETURN v_id;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+CREATE OR REPLACE FUNCTION join_household(
+  p_user_id uuid, p_invite_code text, p_display_name text
+)
+RETURNS uuid AS $$
+DECLARE v_id uuid;
+BEGIN
+  SELECT id INTO v_id FROM households WHERE invite_code = p_invite_code;
+  IF v_id IS NULL THEN RAISE EXCEPTION 'Invite code not found'; END IF;
+  INSERT INTO profiles (id, household_id, display_name, preferences)
+  VALUES (p_user_id, v_id, p_display_name, '{}'::jsonb);
+  RETURN v_id;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+-- ================================================================
+-- STEP 9: GRANTS (required for RLS to work via API)
 -- ================================================================
 GRANT USAGE ON SCHEMA public TO anon, authenticated;
 GRANT ALL ON ALL TABLES IN SCHEMA public TO authenticated;

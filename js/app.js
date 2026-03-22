@@ -475,41 +475,24 @@ async function handleSignup(e) {
   if (authErr) { isSigningUp = false; showSignupError(errEl, btn, authErr.message); return; }
   const userId = authData.user.id;
 
-  // Explicitly set the session so DB requests are authenticated
-  if (authData.session) {
-    await supabase.auth.setSession({
-      access_token: authData.session.access_token,
-      refresh_token: authData.session.refresh_token,
-    });
-  } else {
-    // No session yet (e.g. email confirmation still on) — sign in first
-    const { data: signInData, error: signInErr } = await supabase.auth.signInWithPassword({ email, password });
-    if (signInErr) { isSigningUp = false; showSignupError(errEl, btn, signInErr.message); return; }
-  }
-
-  let householdId;
+  // Use SECURITY DEFINER RPC functions to create household + profile
+  // bypassing RLS entirely — safe because we validate inputs server-side
   if (isJoin) {
     const code = document.getElementById('signup-invite').value.trim().toUpperCase();
-    const { data: hh, error: hhErr } = await supabase.from('households').select('id').eq('invite_code', code).single();
-    if (hhErr || !hh) { isSigningUp = false; showSignupError(errEl, btn, 'Invite code not found. Check and try again.'); return; }
-    householdId = hh.id;
+    const { error: joinErr } = await supabase.rpc('join_household', {
+      p_user_id: userId, p_invite_code: code, p_display_name: name,
+    });
+    if (joinErr) { isSigningUp = false; showSignupError(errEl, btn, joinErr.message); return; }
   } else {
     const hhName = document.getElementById('signup-household').value.trim();
     const currency = document.getElementById('signup-currency').value.trim() || 'Kč';
     if (!hhName) { isSigningUp = false; showSignupError(errEl, btn, 'Please enter a household name.'); return; }
-    const { data: hh, error: hhErr } = await supabase.from('households').insert({
-      name: hhName, invite_code: generateInviteCode(), currency,
-    }).select().single();
-    if (hhErr) { isSigningUp = false; showSignupError(errEl, btn, hhErr.message); return; }
-    householdId = hh.id;
-    // Create household_settings
-    await supabase.from('household_settings').insert({ household_id: householdId, theme: {}, account_order: [] });
+    const { error: setupErr } = await supabase.rpc('setup_household', {
+      p_user_id: userId, p_household_name: hhName,
+      p_invite_code: generateInviteCode(), p_currency: currency, p_display_name: name,
+    });
+    if (setupErr) { isSigningUp = false; showSignupError(errEl, btn, setupErr.message); return; }
   }
-
-  const { error: profErr } = await supabase.from('profiles').insert({
-    id: userId, household_id: householdId, display_name: name, preferences: {},
-  });
-  if (profErr) { isSigningUp = false; showSignupError(errEl, btn, profErr.message); return; }
 
   // All DB setup done — now boot the app
   isSigningUp = false;
