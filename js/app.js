@@ -475,6 +475,18 @@ async function handleSignup(e) {
   if (authErr) { isSigningUp = false; showSignupError(errEl, btn, authErr.message); return; }
   const userId = authData.user.id;
 
+  // Explicitly set the session so DB requests are authenticated
+  if (authData.session) {
+    await supabase.auth.setSession({
+      access_token: authData.session.access_token,
+      refresh_token: authData.session.refresh_token,
+    });
+  } else {
+    // No session yet (e.g. email confirmation still on) — sign in first
+    const { data: signInData, error: signInErr } = await supabase.auth.signInWithPassword({ email, password });
+    if (signInErr) { isSigningUp = false; showSignupError(errEl, btn, signInErr.message); return; }
+  }
+
   let householdId;
   if (isJoin) {
     const code = document.getElementById('signup-invite').value.trim().toUpperCase();
