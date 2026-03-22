@@ -151,7 +151,6 @@ function wireDisplay(state) {
     if (profiles[0]) {
       const prefs = { ...(profiles[0].preferences || {}), salary_day: sdA };
       updates.push(App.supabase.from('profiles').update({ preferences: prefs }).eq('id', profiles[0].id));
-      if (!('error' in updates[updates.length-1])) profiles[0].preferences = { ...profiles[0].preferences, salary_day: sdA };
     }
     if (profiles[1] && document.getElementById('disp-salary-b')) {
       const prefs = { ...(profiles[1].preferences || {}), salary_day: sdB };
@@ -324,7 +323,7 @@ function wireAccountsSection(state) {
     btn.addEventListener('click', async () => {
       const ok = await App.openConfirm('Delete account', 'Transactions remain but will be unlinked.');
       if (!ok) return;
-      const { error } = await App.supabase.from('accounts').delete().eq('id', btn.dataset.id);
+      const { error } = await App.supabase.from('accounts').delete().eq('id', btn.dataset.id).eq('household_id', App.state.household.id);
       if (!error) {
         state.accounts = state.accounts.filter(a => a.id !== btn.dataset.id);
         App.toast('Deleted', 'success');
@@ -404,7 +403,7 @@ function wireCategoriesSection(state) {
     btn.addEventListener('click', async () => {
       const ok = await App.openConfirm('Delete category', 'Transactions using this category will become uncategorised.');
       if (!ok) return;
-      const { error } = await App.supabase.from('categories').delete().eq('id', btn.dataset.id);
+      const { error } = await App.supabase.from('categories').delete().eq('id', btn.dataset.id).eq('household_id', App.state.household.id);
       if (!error) {
         state.categories = state.categories.filter(c => c.id !== btn.dataset.id);
         App.toast('Category deleted', 'success');
@@ -580,7 +579,7 @@ function wireRecurringSection(state) {
     btn.addEventListener('click', async () => {
       const ok = await App.openConfirm('Delete template', 'Future auto-logging will stop. Existing transactions are kept.');
       if (!ok) return;
-      const { error } = await App.supabase.from('recurring_templates').delete().eq('id', btn.dataset.id);
+      const { error } = await App.supabase.from('recurring_templates').delete().eq('id', btn.dataset.id).eq('household_id', App.state.household.id);
       if (!error) {
         state.recurringTemplates = state.recurringTemplates.filter(t => t.id !== btn.dataset.id);
         App.toast('Template deleted', 'success');

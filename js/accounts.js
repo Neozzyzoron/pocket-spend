@@ -297,32 +297,21 @@ function openAdjustModal(state, acc) {
       errEl.textContent = 'Enter a non-zero amount'; errEl.classList.remove('hidden'); return;
     }
 
+    // amount must be positive per schema CHECK; encode direction in notes field
+    const absAmount = Math.abs(amount);
     const { data, error } = await App.supabase.from('transactions').insert({
       household_id: App.state.household.id,
       user_id: App.state.user.id,
       date: new Date().toISOString().split('T')[0],
       description: note || `Balance adjustment — ${acc.name}`,
-      amount: Math.abs(amount),
+      amount: absAmount,
       type: 'adjustment',
       status: 'confirmed',
       account_id: acc.id,
-      notes: amount > 0 ? `+${amount}` : String(amount),
+      notes: amount < 0 ? 'subtract' : 'add',
     }).select().single();
 
     if (error) { errEl.textContent = error.message; errEl.classList.remove('hidden'); return; }
-
-    // For negative adjustments, we treat the amount as negative in balance calc
-    // The adjustment type adds the amount, so we store negative values via notes
-    // Actually adjustment always adds amount. For subtract we use negative amount stored differently.
-    // Let me handle this: store positive amount but when type=adjustment and amount is to be subtracted,
-    // we need the calcAccountBalance to handle it. Currently adjustment = +amount.
-    // The spec says: adjustment | + amount (can be negative)
-    // So we should store the signed amount. Let me update: if negative, store negative amount.
-    if (amount < 0) {
-      // Update amount to be stored as negative
-      await App.supabase.from('transactions').update({ amount: amount }).eq('id', data.id);
-      data.amount = amount;
-    }
 
     state.transactions.unshift(data);
     App.toast('Balance adjusted', 'success');
@@ -351,7 +340,7 @@ async function toggleArchive(state, id) {
 async function deleteAccount(state, id) {
   const ok = await App.openConfirm('Delete account', 'The account will be deleted. Transactions remain but will be unlinked.');
   if (!ok) return;
-  const { error } = await App.supabase.from('accounts').delete().eq('id', id);
+  const { error } = await App.supabase.from('accounts').delete().eq('id', id).eq('household_id', App.state.household.id);
   if (!error) {
     state.accounts = state.accounts.filter(a => a.id !== id);
     App.toast('Account deleted', 'success');

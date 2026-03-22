@@ -580,7 +580,13 @@ async function boot(user) {
     navigate(validPage);
   } catch (err) {
     console.error('[boot] failed:', err);
-    await supabase.auth.signOut();
+    // Clear session from storage directly — signOut may hang if user was deleted
+    try {
+      Object.keys(localStorage).forEach(k => {
+        if (k.startsWith('sb-')) localStorage.removeItem(k);
+      });
+    } catch (_) {}
+    try { await Promise.race([supabase.auth.signOut(), new Promise(r => setTimeout(r, 2000))]); } catch (_) {}
     showAuthScreen();
   }
 }

@@ -357,7 +357,7 @@ export function calcAccountBalance(account, transactions) {
       if (isSource) {
         // Deduct from source
         if (['spend', 'savings', 'investment', 'transfer', 'withdrawal', 'debt_payment'].includes(tx.type)) bal -= amt;
-        if (tx.type === 'adjustment') bal += amt;
+        if (tx.type === 'adjustment') bal += (tx.notes === 'subtract' ? -amt : amt);
       }
       if (isDest) {
         // Add to destination

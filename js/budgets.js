@@ -61,7 +61,7 @@ export function render(state) {
     btn.addEventListener('click', async () => {
       const ok = await App.openConfirm('Delete budget', 'This will delete the budget and all snapshots.');
       if (!ok) return;
-      const { error } = await App.supabase.from('budgets').delete().eq('id', btn.dataset.id);
+      const { error } = await App.supabase.from('budgets').delete().eq('id', btn.dataset.id).eq('household_id', App.state.household.id);
       if (!error) {
         state.budgets = state.budgets.filter(b => b.id !== btn.dataset.id);
         state.budgetSnapshots = state.budgetSnapshots.filter(s => s.budget_id !== btn.dataset.id);

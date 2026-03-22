@@ -289,7 +289,7 @@ async function toggleTemplate(state, id) {
 async function deleteTemplate(state, id) {
   const ok = await App.openConfirm('Delete template', 'Future auto-logging will stop. Existing transactions are kept.');
   if (!ok) return;
-  const { error } = await App.supabase.from('recurring_templates').delete().eq('id', id);
+  const { error } = await App.supabase.from('recurring_templates').delete().eq('id', id).eq('household_id', App.state.household.id);
   if (!error) {
     state.recurringTemplates = state.recurringTemplates.filter(t => t.id !== id);
     App.toast('Template deleted', 'success');

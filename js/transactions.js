@@ -174,7 +174,7 @@ function renderTable(state) {
       const id = btn.dataset.id;
       const ok = await App.openConfirm('Delete transaction', 'This cannot be undone.');
       if (!ok) return;
-      const { error } = await App.supabase.from('transactions').delete().eq('id', id);
+      const { error } = await App.supabase.from('transactions').delete().eq('id', id).eq('household_id', App.state.household.id);
       if (!error) {
         state.transactions = state.transactions.filter(t => t.id !== id);
         renderTable(state);
@@ -352,7 +352,7 @@ async function bulkDelete(state) {
   const ok = await App.openConfirm('Delete transactions', `Delete ${selectedIds.size} transaction(s)? This cannot be undone.`);
   if (!ok) return;
   const ids = [...selectedIds];
-  const { error } = await App.supabase.from('transactions').delete().in('id', ids);
+  const { error } = await App.supabase.from('transactions').delete().in('id', ids).eq('household_id', App.state.household.id);
   if (!error) {
     state.transactions = state.transactions.filter(t => !ids.includes(t.id));
     selectedIds.clear();
