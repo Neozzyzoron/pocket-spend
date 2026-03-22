@@ -200,7 +200,10 @@ function renderThemeSection(state) {
           <input type="color" class="theme-custom" data-area="${area.key}" value="${theme[area.key] || area.default}" title="Custom color" style="width:24px;height:24px;border-radius:4px;border:none;padding:0;cursor:pointer;background:transparent" />
         </div>
       </div>`).join('')}
-      <button class="btn btn-primary btn-sm" id="theme-save-btn">Apply theme</button>
+      <div class="flex gap-2">
+        <button class="btn btn-primary btn-sm" id="theme-save-btn">Apply theme</button>
+        <button class="btn btn-ghost btn-sm" id="theme-reset-btn">Reset to default</button>
+      </div>
     </div>
   </div>`;
 }
@@ -225,6 +228,22 @@ function wireTheme(state) {
     inp.addEventListener('change', e => {
       themeChanges[inp.dataset.area] = e.target.value;
     });
+  });
+
+  const DEFAULT_THEME = { accent: '#22c55e', bg: '#0f1117', surface: '#1a1d27', sidebar: '#13161f' };
+
+  document.getElementById('theme-reset-btn')?.addEventListener('click', async () => {
+    const { error } = await App.supabase.from('household_settings')
+      .update({ theme: DEFAULT_THEME }).eq('household_id', App.state.household.id);
+    if (!error) {
+      if (state.settings) state.settings.theme = { ...DEFAULT_THEME };
+      const { applyTheme } = await import('./utils.js');
+      applyTheme(DEFAULT_THEME);
+      App.toast('Theme reset to default', 'success');
+      render(state);
+    } else {
+      App.toast('Error: ' + error.message, 'error');
+    }
   });
 
   document.getElementById('theme-save-btn')?.addEventListener('click', async () => {
