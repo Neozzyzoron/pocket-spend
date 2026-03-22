@@ -556,6 +556,7 @@ async function boot(user) {
     navigate(validPage);
   } catch (err) {
     console.error('[boot] failed:', err);
+    await supabase.auth.signOut();
     showAuthScreen();
   }
 }
