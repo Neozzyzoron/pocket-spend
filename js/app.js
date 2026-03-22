@@ -511,8 +511,10 @@ async function boot(user) {
     state.user = user;
     console.log('[boot] loading profile...');
 
-    // Load profile + household
-    const { data: profile, error: profileError } = await supabase.from('profiles').select('*, households(*)').eq('id', user.id).single();
+    // Load profile + household (with 10s timeout)
+    const profilePromise = supabase.from('profiles').select('*, households(*)').eq('id', user.id).single();
+    const timeout = new Promise((_, reject) => setTimeout(() => reject(new Error('Profile fetch timed out')), 10000));
+    const { data: profile, error: profileError } = await Promise.race([profilePromise, timeout]);
     console.log('[boot] profile result:', { profile, profileError });
 
     if (profileError || !profile || !profile.household_id) {
