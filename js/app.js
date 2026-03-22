@@ -518,10 +518,9 @@ async function boot(user) {
     state.user = user;
     console.log('[boot] loading profile...');
 
-    // Load profile + household (with 10s timeout)
-    const profilePromise = supabase.from('profiles').select('*, households(*)').eq('id', user.id).single();
-    const timeout = new Promise((_, reject) => setTimeout(() => reject(new Error('Profile fetch timed out')), 10000));
-    const { data: profile, error: profileError } = await Promise.race([profilePromise, timeout]);
+    // Fetch profile and household separately to avoid circular RLS in join
+    const { data: profile, error: profileError } = await supabase
+      .from('profiles').select('*').eq('id', user.id).single();
     console.log('[boot] profile result:', { profile, profileError });
 
     if (profileError || !profile || !profile.household_id) {
@@ -529,8 +528,17 @@ async function boot(user) {
       return;
     }
 
+    const { data: household, error: householdError } = await supabase
+      .from('households').select('*').eq('id', profile.household_id).single();
+    console.log('[boot] household result:', { household, householdError });
+
+    if (householdError || !household) {
+      showAuthScreen();
+      return;
+    }
+
     state.profile = profile;
-    state.household = profile.households || { id: profile.household_id };
+    state.household = household;
     state.prefs = mergePrefs(profile.preferences || {});
 
     // Load all data
