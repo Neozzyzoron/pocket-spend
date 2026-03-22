@@ -527,6 +527,8 @@ async function boot(user) {
     console.log('[boot] profile result:', { profile, profileError });
 
     if (profileError || !profile || !profile.household_id) {
+      console.warn('[boot] no profile/household_id', profileError);
+      bootInProgress = false;
       showAuthScreen();
       return;
     }
@@ -536,6 +538,8 @@ async function boot(user) {
     console.log('[boot] household result:', { household, householdError });
 
     if (householdError || !household) {
+      console.warn('[boot] no household', householdError);
+      bootInProgress = false;
       showAuthScreen();
       return;
     }
