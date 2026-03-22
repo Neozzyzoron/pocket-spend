@@ -1,0 +1,195 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Pocket</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700;1,9..40,400&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="./css/styles.css" />
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+</head>
+<body>
+
+  <!-- ─── AUTH SCREEN ─────────────────────────────────────────── -->
+  <div id="auth-screen" class="auth-screen hidden">
+    <div class="auth-card">
+      <div class="auth-brand">
+        <div class="auth-brand-icon">◈</div>
+        <div class="auth-brand-name">Pocket</div>
+      </div>
+
+      <!-- Login -->
+      <div id="login-form">
+        <h2 class="auth-heading">Welcome back</h2>
+        <p class="auth-sub">Sign in to your household</p>
+        <div class="form-group">
+          <label class="form-label">Email</label>
+          <input class="form-input" type="email" id="login-email" placeholder="you@example.com" autocomplete="email" />
+        </div>
+        <div class="form-group">
+          <label class="form-label">Password</label>
+          <input class="form-input" type="password" id="login-password" placeholder="••••••••" autocomplete="current-password" />
+        </div>
+        <div id="login-error" class="form-error hidden"></div>
+        <button class="btn btn-primary btn-block" id="login-btn">Sign in</button>
+        <p class="auth-switch">No account? <a href="#" id="show-signup">Create one</a></p>
+      </div>
+
+      <!-- Sign up -->
+      <div id="signup-form" class="hidden">
+        <h2 class="auth-heading">Create account</h2>
+        <p class="auth-sub">Set up or join a household</p>
+        <div class="form-group">
+          <label class="form-label">Display name</label>
+          <input class="form-input" type="text" id="signup-name" placeholder="Your name" />
+        </div>
+        <div class="form-group">
+          <label class="form-label">Email</label>
+          <input class="form-input" type="email" id="signup-email" placeholder="you@example.com" autocomplete="email" />
+        </div>
+        <div class="form-group">
+          <label class="form-label">Password</label>
+          <input class="form-input" type="password" id="signup-password" placeholder="Min 6 characters" autocomplete="new-password" />
+        </div>
+        <div class="household-choice" id="household-choice">
+          <button class="choice-btn active" id="choice-create" type="button">🏠 Create household</button>
+          <button class="choice-btn" id="choice-join" type="button">🔗 Join with code</button>
+        </div>
+        <div id="create-fields">
+          <div class="form-group">
+            <label class="form-label">Household name</label>
+            <input class="form-input" type="text" id="signup-household" placeholder="e.g. Our Home" />
+          </div>
+          <div class="form-group">
+            <label class="form-label">Currency symbol</label>
+            <input class="form-input" type="text" id="signup-currency" placeholder="Kč" value="Kč" maxlength="5" />
+          </div>
+        </div>
+        <div id="join-fields" class="hidden">
+          <div class="form-group">
+            <label class="form-label">Invite code</label>
+            <input class="form-input" type="text" id="signup-invite" placeholder="6-digit code" maxlength="6" style="font-family:var(--font-mono);letter-spacing:.15em;text-transform:uppercase;" />
+          </div>
+        </div>
+        <div id="signup-error" class="form-error hidden"></div>
+        <button class="btn btn-primary btn-block" id="signup-btn">Create account</button>
+        <p class="auth-switch">Have an account? <a href="#" id="show-login">Sign in</a></p>
+      </div>
+    </div>
+  </div>
+
+  <!-- ─── APP SHELL ────────────────────────────────────────────── -->
+  <div id="app-shell" class="app-shell hidden">
+
+    <!-- Sidebar -->
+    <aside id="sidebar" class="sidebar">
+      <div class="sidebar-header">
+        <div class="sidebar-brand">
+          <span class="sidebar-brand-icon">◈</span>
+          <span class="sidebar-brand-name">Pocket</span>
+        </div>
+        <button class="sidebar-close btn-icon" id="sidebar-close" aria-label="Close menu">✕</button>
+      </div>
+
+      <nav class="sidebar-nav" id="sidebar-nav" aria-label="Main navigation">
+        <!-- populated by app.js -->
+      </nav>
+
+      <div class="sidebar-cycle" id="sidebar-cycle" style="display:none">
+        <div class="cycle-label">Period</div>
+        <div class="cycle-options" id="cycle-options">
+          <!-- populated by app.js -->
+        </div>
+      </div>
+
+      <div class="sidebar-footer">
+        <div class="user-pill" id="user-pill">
+          <div class="user-avatar" id="user-avatar">?</div>
+          <div class="user-meta">
+            <div class="user-name" id="user-name">—</div>
+            <div class="user-household" id="user-household">—</div>
+          </div>
+        </div>
+        <button class="btn-ghost sign-out-btn" id="sign-out-btn">Sign out</button>
+      </div>
+    </aside>
+
+    <!-- Sidebar overlay (mobile) -->
+    <div class="sidebar-overlay" id="sidebar-overlay"></div>
+
+    <!-- Main -->
+    <main class="main" id="main">
+      <!-- Mobile topbar -->
+      <div class="topbar" id="topbar">
+        <button class="btn-icon hamburger" id="hamburger" aria-label="Open menu">
+          <span></span><span></span><span></span>
+        </button>
+        <span class="topbar-title" id="topbar-title">Pocket</span>
+        <div class="topbar-actions" id="topbar-actions"></div>
+      </div>
+
+      <!-- Page containers -->
+      <div id="page-dashboard"    class="page hidden" data-page="dashboard"></div>
+      <div id="page-transactions" class="page hidden" data-page="transactions"></div>
+      <div id="page-budgets"      class="page hidden" data-page="budgets"></div>
+      <div id="page-analytics"    class="page hidden" data-page="analytics"></div>
+      <div id="page-forecast"     class="page hidden" data-page="forecast"></div>
+      <div id="page-recurring"    class="page hidden" data-page="recurring"></div>
+      <div id="page-accounts"     class="page hidden" data-page="accounts"></div>
+      <div id="page-settings"     class="page hidden" data-page="settings"></div>
+    </main>
+  </div>
+
+  <!-- ─── LOADING OVERLAY ──────────────────────────────────────── -->
+  <div id="loading-overlay" class="loading-overlay">
+    <div class="loading-spinner"></div>
+  </div>
+
+  <!-- ─── TOAST CONTAINER ─────────────────────────────────────── -->
+  <div id="toast-container" class="toast-container" aria-live="polite"></div>
+
+  <!-- ─── MODAL ────────────────────────────────────────────────── -->
+  <div id="modal-backdrop" class="modal-backdrop hidden">
+    <div class="modal" id="modal" role="dialog" aria-modal="true">
+      <div class="modal-header">
+        <h3 class="modal-title" id="modal-title"></h3>
+        <button class="btn-icon modal-close-btn" id="modal-close-btn" aria-label="Close">✕</button>
+      </div>
+      <div class="modal-body" id="modal-body"></div>
+    </div>
+  </div>
+
+  <!-- ─── BOTTOM SHEET (mobile) ────────────────────────────────── -->
+  <div id="sheet-backdrop" class="modal-backdrop hidden">
+    <div class="bottom-sheet" id="bottom-sheet" role="dialog" aria-modal="true">
+      <div class="bottom-sheet-handle"></div>
+      <div class="modal-header">
+        <h3 class="modal-title" id="sheet-title"></h3>
+        <button class="btn-icon modal-close-btn" id="sheet-close-btn" aria-label="Close">✕</button>
+      </div>
+      <div class="modal-body" id="sheet-body"></div>
+    </div>
+  </div>
+
+  <!-- ─── CONFIRM DIALOG ───────────────────────────────────────── -->
+  <div id="confirm-backdrop" class="modal-backdrop hidden">
+    <div class="modal modal--sm" id="confirm-dialog" role="alertdialog">
+      <div class="modal-header">
+        <h3 class="modal-title" id="confirm-title">Confirm</h3>
+      </div>
+      <div class="modal-body">
+        <p id="confirm-message"></p>
+        <div class="btn-row" style="margin-top:1.25rem">
+          <button class="btn btn-ghost" id="confirm-cancel-btn">Cancel</button>
+          <button class="btn btn-danger" id="confirm-ok-btn">Delete</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script type="module" src="./js/app.js"></script>
+</body>
+</html>
