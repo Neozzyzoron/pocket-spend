@@ -20,21 +20,21 @@
   --amber:      #f59e0b;
   --amber-l:    #fef3c7;
 
-  /* Surface */
-  --bg:         #0f1117;
-  --sidebar-bg: #13161f;
-  --surface:    #1a1d27;
-  --surface2:   #22263a;
-  --border:     #2a2e3f;
+  /* Surface — light creamy defaults, overridden by applyTheme() */
+  --bg:         #faf7f2;
+  --sidebar-bg: #f2ede4;
+  --surface:    #ede8de;
+  --surface2:   #e3ddd1;
+  --border:     #d5cfc3;
 
   /* Text */
-  --text:       #f0f2f8;
-  --text2:      #8b90a8;
-  --text3:      #4a4f6a;
+  --text:       #1c1917;
+  --text2:      #78716c;
+  --text3:      #a8a29e;
 
   /* Accent (defaults to green) */
   --accent:     var(--green);
-  --accent-l:   var(--green-l);
+  --accent-l:   #d4f7e3;
 
   /* Sizing */
   --sidebar-w:  220px;
@@ -44,8 +44,8 @@
   --radius-sm:  5px;
 
   /* Shadows */
-  --shadow:     0 2px 8px rgba(0,0,0,.35);
-  --shadow-lg:  0 8px 32px rgba(0,0,0,.5);
+  --shadow:     0 2px 8px rgba(0,0,0,.10);
+  --shadow-lg:  0 8px 32px rgba(0,0,0,.18);
 
   /* Transitions */
   --t:          150ms ease;

@@ -168,38 +168,92 @@ function wireDisplay(state) {
 }
 
 // ── 3. THEME ──────────────────────────────────────────────────
-const PALETTE = [
-  '#22c55e','#16a34a','#15803d','#166534',
-  '#3b82f6','#2563eb','#1d4ed8','#1e40af',
-  '#a855f7','#9333ea','#7c3aed','#6d28d9',
-  '#ec4899','#db2777','#be185d','#9d174d',
-  '#ef4444','#dc2626','#b91c1c','#991b1b',
-  '#f97316','#ea580c','#c2410c','#9a3412',
-  '#eab308','#ca8a04','#a16207','#854d0e',
-  '#14b8a6','#0d9488','#0f766e','#115e59',
+const DEFAULT_THEME = { bg: '#faf7f2', text: '#1c1917', accent: '#22c55e' };
+
+const BG_PRESETS = [
+  { label: 'Cream',       color: '#faf7f2' },
+  { label: 'Warm white',  color: '#fdf8f0' },
+  { label: 'Cool white',  color: '#f8fafc' },
+  { label: 'Pure white',  color: '#ffffff' },
+  { label: 'Slate dark',  color: '#0f1117' },
+  { label: 'Navy dark',   color: '#0d1117' },
+  { label: 'Charcoal',    color: '#1a1a2e' },
+  { label: 'Espresso',    color: '#1c1208' },
 ];
+
+const TEXT_PRESETS = [
+  { label: 'Stone',       color: '#1c1917' },
+  { label: 'Near black',  color: '#0f0f0f' },
+  { label: 'Dark slate',  color: '#1e293b' },
+  { label: 'Off-white',   color: '#f0f2f8' },
+  { label: 'Warm white',  color: '#faf8f5' },
+  { label: 'Cool white',  color: '#e8eaf0' },
+];
+
+const ACCENT_PALETTE = [
+  '#22c55e','#16a34a','#15803d',
+  '#3b82f6','#2563eb','#1d4ed8',
+  '#a855f7','#9333ea','#7c3aed',
+  '#ec4899','#db2777','#be185d',
+  '#ef4444','#dc2626','#b91c1c',
+  '#f97316','#ea580c','#c2410c',
+  '#eab308','#ca8a04','#a16207',
+  '#14b8a6','#0d9488','#0f766e',
+];
+
+function swatchRow(presets, current, area) {
+  return presets.map(p => {
+    const active = current === p.color;
+    return `<button class="theme-swatch" data-area="${area}" data-color="${p.color}" title="${p.label}"
+      style="width:28px;height:28px;border-radius:5px;background:${p.color};
+             border:2px solid ${active ? 'var(--accent)' : 'var(--border)'};
+             box-shadow:${active ? '0 0 0 2px var(--accent)' : 'none'}"></button>`;
+  }).join('');
+}
 
 function renderThemeSection(state) {
   const theme = state.settings?.theme || {};
-  const areas = [
-    { key: 'accent', label: 'Accent color', default: '#22c55e' },
-    { key: 'bg', label: 'Background', default: '#0f1117' },
-    { key: 'surface', label: 'Surface', default: '#1a1d27' },
-    { key: 'sidebar', label: 'Sidebar', default: '#13161f' },
-  ];
+  const cur = { ...DEFAULT_THEME, ...theme };
 
   return `<div class="section">
-    <div class="section-header"><div class="section-title">Theme</div></div>
-    <div class="card">
-      ${areas.map(area => `<div class="form-group">
-        <label class="form-label">${area.label}</label>
-        <div class="flex gap-1" style="flex-wrap:wrap;margin-top:.35rem">
-          ${PALETTE.map(c => `<button class="theme-swatch${(theme[area.key] || area.default) === c ? ' active' : ''}"
-            data-area="${area.key}" data-color="${c}"
-            style="width:24px;height:24px;border-radius:4px;background:${c};border:2px solid ${(theme[area.key] || area.default) === c ? '#fff' : 'transparent'}"></button>`).join('')}
-          <input type="color" class="theme-custom" data-area="${area.key}" value="${theme[area.key] || area.default}" title="Custom color" style="width:24px;height:24px;border-radius:4px;border:none;padding:0;cursor:pointer;background:transparent" />
+    <div class="section-header"><div class="section-title">Theme</div>
+      <div class="text-sm text-muted">Surface, sidebar &amp; border shades are derived automatically</div>
+    </div>
+    <div class="card" style="display:flex;flex-direction:column;gap:1.25rem">
+
+      <div class="form-group" style="margin:0">
+        <label class="form-label">Background</label>
+        <div class="flex gap-1" style="flex-wrap:wrap;margin-top:.4rem;align-items:center">
+          ${swatchRow(BG_PRESETS, cur.bg, 'bg')}
+          <input type="color" class="theme-custom" data-area="bg" value="${cur.bg}"
+            title="Custom" style="width:28px;height:28px;border-radius:5px;border:2px solid var(--border);padding:2px;cursor:pointer" />
         </div>
-      </div>`).join('')}
+      </div>
+
+      <div class="form-group" style="margin:0">
+        <label class="form-label">Text</label>
+        <div class="flex gap-1" style="flex-wrap:wrap;margin-top:.4rem;align-items:center">
+          ${swatchRow(TEXT_PRESETS, cur.text, 'text')}
+          <input type="color" class="theme-custom" data-area="text" value="${cur.text}"
+            title="Custom" style="width:28px;height:28px;border-radius:5px;border:2px solid var(--border);padding:2px;cursor:pointer" />
+        </div>
+      </div>
+
+      <div class="form-group" style="margin:0">
+        <label class="form-label">Accent</label>
+        <div class="flex gap-1" style="flex-wrap:wrap;margin-top:.4rem;align-items:center">
+          ${ACCENT_PALETTE.map(c => {
+            const active = cur.accent === c;
+            return `<button class="theme-swatch" data-area="accent" data-color="${c}"
+              style="width:28px;height:28px;border-radius:5px;background:${c};
+                     border:2px solid ${active ? 'var(--accent)' : 'var(--border)'};
+                     box-shadow:${active ? '0 0 0 2px var(--accent)' : 'none'}"></button>`;
+          }).join('')}
+          <input type="color" class="theme-custom" data-area="accent" value="${cur.accent}"
+            title="Custom" style="width:28px;height:28px;border-radius:5px;border:2px solid var(--border);padding:2px;cursor:pointer" />
+        </div>
+      </div>
+
       <div class="flex gap-2">
         <button class="btn btn-primary btn-sm" id="theme-save-btn">Apply theme</button>
         <button class="btn btn-ghost btn-sm" id="theme-reset-btn">Reset to default</button>
@@ -214,23 +268,19 @@ function wireTheme(state) {
 
   el.querySelectorAll('.theme-swatch').forEach(swatch => {
     swatch.addEventListener('click', () => {
-      const area = swatch.dataset.area;
-      const color = swatch.dataset.color;
+      const { area, color } = swatch.dataset;
       themeChanges[area] = color;
-      // Update active state
       el.querySelectorAll(`.theme-swatch[data-area="${area}"]`).forEach(s => {
-        s.style.border = `2px solid ${s.dataset.color === color ? '#fff' : 'transparent'}`;
+        const active = s.dataset.color === color;
+        s.style.border = `2px solid ${active ? 'var(--accent)' : 'var(--border)'}`;
+        s.style.boxShadow = active ? '0 0 0 2px var(--accent)' : 'none';
       });
     });
   });
 
   el.querySelectorAll('.theme-custom').forEach(inp => {
-    inp.addEventListener('change', e => {
-      themeChanges[inp.dataset.area] = e.target.value;
-    });
+    inp.addEventListener('change', () => { themeChanges[inp.dataset.area] = inp.value; });
   });
-
-  const DEFAULT_THEME = { accent: '#22c55e', bg: '#0f1117', surface: '#1a1d27', sidebar: '#13161f' };
 
   document.getElementById('theme-reset-btn')?.addEventListener('click', async () => {
     const { error } = await App.supabase.from('household_settings')
@@ -248,14 +298,12 @@ function wireTheme(state) {
 
   document.getElementById('theme-save-btn')?.addEventListener('click', async () => {
     const current = state.settings?.theme || {};
-    const updated = { ...current, ...themeChanges };
+    const updated = { ...DEFAULT_THEME, ...current, ...themeChanges };
 
     const { error } = await App.supabase.from('household_settings')
       .update({ theme: updated }).eq('household_id', App.state.household.id);
-
     if (!error) {
       if (state.settings) state.settings.theme = updated;
-      // Apply immediately
       const { applyTheme } = await import('./utils.js');
       applyTheme(updated);
       App.toast('Theme applied', 'success');

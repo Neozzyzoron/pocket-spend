@@ -320,21 +320,45 @@ export const NAV_PAGES = {
   settings:     { label: 'Settings',     icon: '⚙' },
 };
 
-/** Apply household theme to CSS variables */
+/** Apply household theme — derives all CSS vars from bg, text, accent */
 export function applyTheme(theme) {
-  if (!theme) return;
+  if (!theme || (!theme.bg && !theme.text && !theme.accent)) return;
   const root = document.documentElement;
-  const map = {
-    accent: '--accent',
-    bg: '--bg',
-    surface: '--surface',
-    sidebar: '--sidebar-bg',
-    border: '--border',
-    text: '--text',
-  };
-  for (const [key, cssVar] of Object.entries(map)) {
-    if (theme[key]) root.style.setProperty(cssVar, theme[key]);
+
+  const bg     = theme.bg     || '#faf7f2';
+  const text   = theme.text   || '#1c1917';
+  const accent = theme.accent || '#22c55e';
+
+  function hexToRgb(h) {
+    const s = h.replace('#','');
+    return [parseInt(s.slice(0,2),16), parseInt(s.slice(2,4),16), parseInt(s.slice(4,6),16)];
   }
+  function toHex(r,g,b) {
+    return '#' + [r,g,b].map(v => Math.round(Math.max(0,Math.min(255,v))).toString(16).padStart(2,'0')).join('');
+  }
+  function mix(c1, c2, t) { // t=0→c1, t=1→c2
+    const [r1,g1,b1] = hexToRgb(c1), [r2,g2,b2] = hexToRgb(c2);
+    return toHex(r1+(r2-r1)*t, g1+(g2-g1)*t, b1+(b2-b1)*t);
+  }
+  function luma(hex) {
+    const [r,g,b] = hexToRgb(hex).map(v => v/255);
+    return 0.2126*r + 0.7152*g + 0.0722*b;
+  }
+
+  const dark = luma(bg) < 0.4;
+
+  root.style.setProperty('--bg',         bg);
+  root.style.setProperty('--text',       text);
+  root.style.setProperty('--accent',     accent);
+  root.style.setProperty('--sidebar-bg', mix(bg, text, dark ? 0.06 : 0.05));
+  root.style.setProperty('--surface',    mix(bg, text, dark ? 0.13 : 0.08));
+  root.style.setProperty('--surface2',   mix(bg, text, dark ? 0.22 : 0.14));
+  root.style.setProperty('--border',     mix(bg, text, dark ? 0.20 : 0.18));
+  root.style.setProperty('--text2',      mix(text, bg, dark ? 0.42 : 0.45));
+  root.style.setProperty('--text3',      mix(text, bg, dark ? 0.60 : 0.65));
+  root.style.setProperty('--accent-l',   mix(bg, accent, dark ? 0.22 : 0.28));
+  root.style.setProperty('--shadow',     `0 2px 8px rgba(${dark?'0,0,0,.35':'0,0,0,.10'})`);
+  root.style.setProperty('--shadow-lg',  `0 8px 32px rgba(${dark?'0,0,0,.5':'0,0,0,.18'})`);
 }
 
 /** Compute account balance from opening_balance + transactions */
