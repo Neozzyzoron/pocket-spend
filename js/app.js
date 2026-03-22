@@ -513,7 +513,10 @@ function showSignupError(errEl, btn, msg) {
 }
 
 // ── BOOT SEQUENCE ─────────────────────────────────────────────
+let bootInProgress = false;
 async function boot(user) {
+  if (bootInProgress) { console.log('[boot] already in progress, skipping'); return; }
+  bootInProgress = true;
   try {
     state.user = user;
     console.log('[boot] loading profile...');
@@ -569,15 +572,10 @@ async function boot(user) {
     const validPage = NAV_PAGES[lastPage] ? lastPage : 'dashboard';
     console.log('[boot] navigating to', validPage);
     navigate(validPage);
+    bootInProgress = false;
   } catch (err) {
     console.error('[boot] failed:', err);
-    // Clear session from storage directly — signOut may hang if user was deleted
-    try {
-      Object.keys(localStorage).forEach(k => {
-        if (k.startsWith('sb-')) localStorage.removeItem(k);
-      });
-    } catch (_) {}
-    try { await Promise.race([supabase.auth.signOut(), new Promise(r => setTimeout(r, 2000))]); } catch (_) {}
+    bootInProgress = false;
     showAuthScreen();
   }
 }
@@ -647,9 +645,8 @@ async function init() {
     if (event === 'SIGNED_IN' && session?.user) {
       if (isSigningUp) return; // signup flow handles boot manually
       await boot(session.user);
-    } else if (event === 'SIGNED_OUT') {
-      showAuthScreen();
     }
+    // SIGNED_OUT is ignored here — explicit signOut() does location.reload()
   });
 
   // Check existing session
