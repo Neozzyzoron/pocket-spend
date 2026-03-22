@@ -509,9 +509,11 @@ function showSignupError(errEl, btn, msg) {
 async function boot(user) {
   try {
     state.user = user;
+    console.log('[boot] loading profile...');
 
     // Load profile + household
     const { data: profile, error: profileError } = await supabase.from('profiles').select('*, households(*)').eq('id', user.id).single();
+    console.log('[boot] profile result:', { profile, profileError });
 
     if (profileError || !profile || !profile.household_id) {
       showAuthScreen();
@@ -523,10 +525,14 @@ async function boot(user) {
     state.prefs = mergePrefs(profile.preferences || {});
 
     // Load all data
+    console.log('[boot] loading all data...');
     await loadAllData();
+    console.log('[boot] data loaded');
 
     // Process recurring templates
+    console.log('[boot] processing recurring...');
     await processRecurringDue();
+    console.log('[boot] recurring done');
 
     // Setup realtime
     setupRealtime();
@@ -544,6 +550,7 @@ async function boot(user) {
     // Restore last page
     const lastPage = localStorage.getItem('pocket_last_page') || 'dashboard';
     const validPage = NAV_PAGES[lastPage] ? lastPage : 'dashboard';
+    console.log('[boot] navigating to', validPage);
     navigate(validPage);
   } catch (err) {
     console.error('[boot] failed:', err);
