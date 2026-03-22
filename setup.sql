@@ -298,7 +298,15 @@ CREATE POLICY "forecast_snapshots_all" ON forecast_snapshots
   WITH CHECK (household_id = get_my_household_id());
 
 -- ================================================================
--- STEP 8: REALTIME
+-- STEP 8: GRANTS (required for RLS to work via API)
+-- ================================================================
+GRANT USAGE ON SCHEMA public TO anon, authenticated;
+GRANT ALL ON ALL TABLES IN SCHEMA public TO authenticated;
+GRANT SELECT ON ALL TABLES IN SCHEMA public TO anon;
+GRANT ALL ON ALL SEQUENCES IN SCHEMA public TO authenticated;
+
+-- ================================================================
+-- STEP 9: REALTIME
 -- ================================================================
 -- Enable realtime on key tables (run if not already set in dashboard)
 -- ALTER PUBLICATION supabase_realtime ADD TABLE transactions;
