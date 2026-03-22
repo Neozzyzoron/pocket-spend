@@ -437,7 +437,9 @@ async function handleLogin(e) {
   const email = document.getElementById('login-email').value.trim();
   const password = document.getElementById('login-password').value;
 
-  const { error } = await supabase.auth.signInWithPassword({ email, password });
+  console.log('[login] attempting signInWithPassword for', email);
+  const { data, error } = await supabase.auth.signInWithPassword({ email, password });
+  console.log('[login] result:', { data, error });
   if (error) {
     errEl.textContent = error.message;
     errEl.classList.remove('hidden');
@@ -544,7 +546,7 @@ async function boot(user) {
     const validPage = NAV_PAGES[lastPage] ? lastPage : 'dashboard';
     navigate(validPage);
   } catch (err) {
-    console.error('Boot failed:', err);
+    console.error('[boot] failed:', err);
     showAuthScreen();
   }
 }
@@ -610,6 +612,7 @@ async function init() {
 
   // Auth state listener
   supabase.auth.onAuthStateChange(async (event, session) => {
+    console.log('[auth] event:', event, 'user:', session?.user?.email);
     if (event === 'SIGNED_IN' && session?.user) {
       await boot(session.user);
     } else if (event === 'SIGNED_OUT') {
