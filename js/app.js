@@ -437,7 +437,9 @@ async function handleLogin(e) {
   const email = document.getElementById('login-email').value.trim();
   const password = document.getElementById('login-password').value;
 
-  const { error } = await supabase.auth.signInWithPassword({ email, password });
+  console.log('[login] attempting signInWithPassword for', email);
+  const { data, error } = await supabase.auth.signInWithPassword({ email, password });
+  console.log('[login] result:', { data, error });
   if (error) {
     errEl.textContent = error.message;
     errEl.classList.remove('hidden');
@@ -505,44 +507,48 @@ function showSignupError(errEl, btn, msg) {
 
 // ── BOOT SEQUENCE ─────────────────────────────────────────────
 async function boot(user) {
-  state.user = user;
+  try {
+    state.user = user;
 
-  // Load profile + household
-  const { data: profile } = await supabase.from('profiles').select('*, households(*)').eq('id', user.id).single();
+    // Load profile + household
+    const { data: profile, error: profileError } = await supabase.from('profiles').select('*, households(*)').eq('id', user.id).single();
 
-  if (!profile || !profile.household_id) {
-    // No household — should not happen post-signup, but handle gracefully
+    if (profileError || !profile || !profile.household_id) {
+      showAuthScreen();
+      return;
+    }
+
+    state.profile = profile;
+    state.household = profile.households || { id: profile.household_id };
+    state.prefs = mergePrefs(profile.preferences || {});
+
+    // Load all data
+    await loadAllData();
+
+    // Process recurring templates
+    await processRecurringDue();
+
+    // Setup realtime
+    setupRealtime();
+
+    // Render shell
+    renderSidebarNav();
+    renderCycleToggle();
+    renderUserPill();
+
+    // Show app
+    hideLoading();
+    document.getElementById('auth-screen').classList.add('hidden');
+    document.getElementById('app-shell').classList.remove('hidden');
+
+    // Restore last page
+    const lastPage = localStorage.getItem('pocket_last_page') || 'dashboard';
+    const validPage = NAV_PAGES[lastPage] ? lastPage : 'dashboard';
+    navigate(validPage);
+  } catch (err) {
+    console.error('[boot] failed:', err);
     showAuthScreen();
-    return;
   }
-
-  state.profile = profile;
-  state.household = profile.households || { id: profile.household_id };
-  state.prefs = mergePrefs(profile.preferences || {});
-
-  // Load all data
-  await loadAllData();
-
-  // Process recurring templates
-  await processRecurringDue();
-
-  // Setup realtime
-  setupRealtime();
-
-  // Render shell
-  renderSidebarNav();
-  renderCycleToggle();
-  renderUserPill();
-
-  // Show app
-  hideLoading();
-  document.getElementById('auth-screen').classList.add('hidden');
-  document.getElementById('app-shell').classList.remove('hidden');
-
-  // Restore last page
-  const lastPage = localStorage.getItem('pocket_last_page') || 'dashboard';
-  const validPage = NAV_PAGES[lastPage] ? lastPage : 'dashboard';
-  navigate(validPage);
 }
 
 function showAuthScreen() {
@@ -606,6 +612,7 @@ async function init() {
 
   // Auth state listener
   supabase.auth.onAuthStateChange(async (event, session) => {
+    console.log('[auth] event:', event, 'user:', session?.user?.email);
     if (event === 'SIGNED_IN' && session?.user) {
       await boot(session.user);
     } else if (event === 'SIGNED_OUT') {
