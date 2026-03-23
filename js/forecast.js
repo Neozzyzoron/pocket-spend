@@ -20,11 +20,19 @@ export function render(state) {
   const forecastN = parseInt(el.dataset.forecastN || '3');
   const personFilter = el.dataset.personFilter || '';
   const avgWindow = state.prefs.forecast_avg_window || 3;
+  const viewMode = el.dataset.viewMode || 'group';
+  const filterNatures   = el.dataset.filterNatures   ? el.dataset.filterNatures.split(',').filter(Boolean)   : [];
+  const filterGroups    = el.dataset.filterGroups    ? el.dataset.filterGroups.split(',').filter(Boolean)    : [];
+  const filterSubcats   = el.dataset.filterSubcats   ? el.dataset.filterSubcats.split(',').filter(Boolean)   : [];
+  const filterSpendTypes= el.dataset.filterSpendTypes? el.dataset.filterSpendTypes.split(',').filter(Boolean): [];
 
   const pa = state.profiles[0]?.preferences?.salary_day;
   const pb = state.profiles[1]?.preferences?.salary_day;
   const prefsForCycle = { salary_day_a: pa, salary_day_b: pb };
   const mode = App.cycleMode();
+
+  // Build category filter function from active data filters
+  const catFilter = buildCatFilter(state.categories, filterNatures, filterGroups, filterSubcats, filterSpendTypes);
 
   // Build periods: historyN past + current + forecastN future
   const allPeriods = buildForecastPeriods(mode, prefsForCycle, historyN, forecastN);
@@ -32,7 +40,11 @@ export function render(state) {
   const currentPeriod = App.cyclePeriod();
 
   // Compute projections
-  const projections = computeProjections(state, allPeriods, currentPeriod, avgWindow, personFilter);
+  const projections = computeProjections(state, allPeriods, currentPeriod, avgWindow, personFilter, catFilter);
+
+  // Cascading filter options
+  const cascOpts = buildCascadingOptions(state.categories, filterNatures, filterGroups, filterSubcats, filterSpendTypes);
+  const hasFilters = filterNatures.length || filterGroups.length || filterSubcats.length || filterSpendTypes.length;
 
   el.innerHTML = `
     <div class="page-header">
@@ -62,6 +74,16 @@ export function render(state) {
           ${[1,3,6,12].map(n => `<button class="toggle-group-btn fc-avg-btn${avgWindow===n?' active':''}" data-n="${n}">${n}</button>`).join('')}
         </div>
       </div>
+      <div class="flex gap-2 items-center" style="flex-wrap:wrap;margin-top:.625rem;padding-top:.625rem;border-top:1px solid var(--border)">
+        <span class="text-sm text-muted">View:</span>
+        <div class="toggle-group">
+          ${['nature','group','subcategory','spend_type'].map(v =>
+            `<button class="toggle-group-btn fc-view-btn${viewMode===v?' active':''}" data-view="${v}">${v==='spend_type'?'Spend type':v.charAt(0).toUpperCase()+v.slice(1)}</button>`
+          ).join('')}
+        </div>
+        ${renderCascadingFilterDropdowns(cascOpts, filterNatures, filterGroups, filterSubcats, filterSpendTypes)}
+        ${hasFilters ? `<button class="btn btn-ghost btn-sm fc-clear-all-filters">Clear filters</button>` : ''}
+      </div>
     </div>
 
     <!-- Summary cards (forecast window only) -->
@@ -82,7 +104,7 @@ export function render(state) {
     ${renderPeriodTable(projections, allPeriods, currentPeriod, cur, state)}
 
     <!-- Category breakdown -->
-    ${renderCategoryBreakdown(state, allPeriods, currentPeriod, forecastN, cur)}
+    ${renderCategoryBreakdown(state, allPeriods, currentPeriod, forecastN, cur, viewMode, catFilter)}
 
     <!-- Forecast accuracy -->
     ${renderForecastAccuracy(state, allPeriods, cur)}
@@ -108,6 +130,49 @@ export function render(state) {
   });
   el.querySelectorAll('.fc-table-view-btn').forEach(btn => {
     btn.addEventListener('click', () => { el.dataset.tableView = btn.dataset.view; render(state); });
+  });
+  el.querySelectorAll('.fc-view-btn').forEach(btn => {
+    btn.addEventListener('click', () => { el.dataset.viewMode = btn.dataset.view; render(state); });
+  });
+
+  // Cascading filter dropdowns — toggle panel visibility
+  el.querySelectorAll('.fc-filter-btn').forEach(btn => {
+    btn.addEventListener('click', e => {
+      e.stopPropagation();
+      const wrap = btn.closest('.fc-filter-dd');
+      const panel = wrap.querySelector('.fc-filter-panel');
+      const isOpen = !panel.classList.contains('hidden');
+      el.querySelectorAll('.fc-filter-panel').forEach(p => p.classList.add('hidden'));
+      if (!isOpen) panel.classList.remove('hidden');
+    });
+  });
+  document.addEventListener('click', () => {
+    el.querySelectorAll('.fc-filter-panel').forEach(p => p.classList.add('hidden'));
+  });
+  el.querySelectorAll('.fc-filter-panel').forEach(panel => {
+    panel.addEventListener('click', e => e.stopPropagation());
+  });
+
+  // Checkbox changes in filter dropdowns
+  el.querySelectorAll('.fc-filter-cb').forEach(cb => {
+    cb.addEventListener('change', () => {
+      const filter = cb.dataset.filter;
+      const panel = cb.closest('.fc-filter-panel');
+      const selected = [...panel.querySelectorAll('.fc-filter-cb:checked')].map(c => c.value);
+      if (filter === 'nature')    el.dataset.filterNatures    = selected.join(',');
+      else if (filter === 'group')     el.dataset.filterGroups     = selected.join(',');
+      else if (filter === 'subcat')    el.dataset.filterSubcats    = selected.join(',');
+      else if (filter === 'spendtype') el.dataset.filterSpendTypes = selected.join(',');
+      render(state);
+    });
+  });
+
+  el.querySelector('.fc-clear-all-filters')?.addEventListener('click', () => {
+    el.dataset.filterNatures = '';
+    el.dataset.filterGroups = '';
+    el.dataset.filterSubcats = '';
+    el.dataset.filterSpendTypes = '';
+    render(state);
   });
 
   setTimeout(() => drawTimelineChart(projections, allPeriods, currentPeriod, cur), 50);
@@ -153,7 +218,7 @@ function getNextPeriodEnd(mode, prefs, start) {
 }
 
 // ── PROJECTIONS ───────────────────────────────────────────────
-function computeProjections(state, periods, currentPeriod, avgWindow, personFilter) {
+function computeProjections(state, periods, currentPeriod, avgWindow, personFilter, catFilter) {
   const { transactions, recurringTemplates, categories } = state;
   const today = new Date(); today.setHours(0,0,0,0);
 
@@ -165,6 +230,7 @@ function computeProjections(state, periods, currentPeriod, avgWindow, personFilt
   const txFilter = (tx) => {
     if (!isEffective(tx)) return false;
     if (personFilter && tx.user_id !== personFilter) return false;
+    if (!catFilter(tx.category_id, tx.type)) return false;
     return true;
   };
 
@@ -183,7 +249,7 @@ function computeProjections(state, periods, currentPeriod, avgWindow, personFilt
     let projected = null;
     if (period.isFuture || period.isCurrent) {
       // Project from templates + rolling average
-      const recurring = computeRecurringProjection(recurringTemplates, period, personFilter);
+      const recurring = computeRecurringProjection(recurringTemplates, period, personFilter, catFilter);
 
       // Rolling average for variable/no-template
       const avg = computeRollingAvg(transactions, histWindow, txFilter);
@@ -216,11 +282,12 @@ function computeProjections(state, periods, currentPeriod, avgWindow, personFilt
   return projections;
 }
 
-function computeRecurringProjection(templates, period, personFilter) {
+function computeRecurringProjection(templates, period, personFilter, catFilter) {
   let income = 0, spending = 0, saved = 0, invested = 0, withdrawn = 0, debt = 0;
 
   for (const t of templates.filter(x => x.is_active)) {
     if (personFilter && t.user_id !== personFilter) continue;
+    if (!catFilter(t.category_id, t.type)) continue;
     const count = calcOccurrences(t, period);
     const amt = Number(t.amount) * count;
     if (t.type === 'income') income += amt;
@@ -612,13 +679,19 @@ function renderForecastAccuracy(state, allPeriods, cur) {
 }
 
 // ── CATEGORY BREAKDOWN ────────────────────────────────────────
-function renderCategoryBreakdown(state, periods, currentPeriod, forecastN, cur) {
+function renderCategoryBreakdown(state, periods, currentPeriod, forecastN, cur, viewMode, catFilter) {
   const { transactions, categories, recurringTemplates } = state;
 
-  // Actual spend from confirmed transactions
+  // Actual spend from confirmed transactions in history window (non-future periods)
+  const histPeriods = periods.filter(p => !p.isFuture);
+  const histStart = histPeriods.length ? histPeriods[0].start : new Date(0);
+  const histEnd   = histPeriods.length ? histPeriods[histPeriods.length - 1].end : new Date();
+
   const actualSpend = {};
-  for (const tx of transactions.filter(tx => isEffective(tx) && tx.type === 'spend')) {
-    const key = tx.category_id || 'uncategorised';
+  for (const tx of transactions.filter(tx => isEffective(tx) && tx.type === 'spend' && catFilter(tx.category_id, tx.type))) {
+    const d = parseISO(tx.date);
+    if (d < histStart || d > histEnd) continue;
+    const key = groupKey(tx.category_id, categories, viewMode);
     actualSpend[key] = (actualSpend[key] || 0) + Number(tx.amount);
   }
 
@@ -626,9 +699,9 @@ function renderCategoryBreakdown(state, periods, currentPeriod, forecastN, cur) 
   const futurePeriods = periods.filter(p => p.isFuture).slice(0, forecastN);
   const projSpend = {};
   for (const period of futurePeriods) {
-    for (const t of recurringTemplates.filter(x => x.is_active && x.type === 'spend')) {
+    for (const t of recurringTemplates.filter(x => x.is_active && x.type === 'spend' && catFilter(x.category_id, x.type))) {
       const count = calcOccurrences(t, period);
-      const key = t.category_id || 'uncategorised';
+      const key = groupKey(t.category_id, categories, viewMode);
       projSpend[key] = (projSpend[key] || 0) + Number(t.amount) * count;
     }
   }
@@ -636,36 +709,156 @@ function renderCategoryBreakdown(state, periods, currentPeriod, forecastN, cur) 
   const allKeys = new Set([...Object.keys(actualSpend), ...Object.keys(projSpend)]);
   if (!allKeys.size) return '';
 
-  const rows = [...allKeys].map(key => {
-    const cat = categories.find(c => c.id === key);
-    return {
-      name: cat ? `${cat.icon} ${cat.name}` : 'Uncategorised',
-      actual: actualSpend[key] || 0,
-      projected: projSpend[key] || 0,
-    };
-  }).sort((a, b) => (b.actual + b.projected) - (a.actual + a.projected));
+  const rows = [...allKeys].map(key => ({
+    name: groupLabel(key, categories, viewMode),
+    actual: actualSpend[key] || 0,
+    projected: projSpend[key] || 0,
+  })).sort((a, b) => (b.actual + b.projected) - (a.actual + a.projected));
+
+  const totalActual = rows.reduce((s, r) => s + r.actual, 0);
+  const totalProj   = rows.reduce((s, r) => s + r.projected, 0);
 
   return `<div class="section">
     <div class="section-header">
       <div class="section-title">Category Breakdown</div>
+      <div class="text-sm text-muted">History window · next ${forecastN} period${forecastN>1?'s':''} projected</div>
     </div>
     <div class="card" style="padding:0">
       <div class="table-wrap">
         <table class="table">
           <thead><tr>
             <th>Category</th>
-            <th class="amount-col">Actual (all time)</th>
-            <th class="amount-col">Projected (next ${forecastN} periods)</th>
+            <th class="amount-col">Actual</th>
+            <th class="amount-col">Projected remaining</th>
+            <th class="amount-col">Projected total</th>
+            <th class="amount-col">Variance</th>
           </tr></thead>
           <tbody>
-            ${rows.map(r => `<tr>
-              <td class="text-sm">${escHtml(r.name)}</td>
-              <td class="amount-col text-mono">${r.actual > 0 ? fmtCurrency(r.actual, cur) : '—'}</td>
-              <td class="amount-col text-mono text-muted" style="font-style:italic">${r.projected > 0 ? `~ ${fmtCurrency(r.projected, cur)}` : '—'}</td>
-            </tr>`).join('')}
+            ${rows.map(r => {
+              const projTotal = r.actual + r.projected;
+              const variance  = r.projected - r.actual;
+              const varCls    = variance > 0 ? 'c-red' : variance < 0 ? 'c-green' : '';
+              return `<tr>
+                <td class="text-sm">${escHtml(r.name)}</td>
+                <td class="amount-col text-mono">${r.actual > 0 ? fmtCurrency(r.actual, cur) : '—'}</td>
+                <td class="amount-col text-mono text-muted" style="font-style:italic">${r.projected > 0 ? `~ ${fmtCurrency(r.projected, cur)}` : '—'}</td>
+                <td class="amount-col text-mono">${projTotal > 0 ? fmtCurrency(projTotal, cur) : '—'}</td>
+                <td class="amount-col text-mono ${varCls}">${variance !== 0 ? (variance > 0 ? '+' : '') + fmtCurrency(variance, cur) : '—'}</td>
+              </tr>`;
+            }).join('')}
           </tbody>
+          <tfoot><tr style="border-top:2px solid var(--border);font-weight:600">
+            <td>Total</td>
+            <td class="amount-col text-mono">${fmtCurrency(totalActual, cur)}</td>
+            <td class="amount-col text-mono text-muted" style="font-style:italic">~ ${fmtCurrency(totalProj, cur)}</td>
+            <td class="amount-col text-mono">${fmtCurrency(totalActual + totalProj, cur)}</td>
+            <td></td>
+          </tfoot>
         </table>
       </div>
     </div>
   </div>`;
+}
+
+// ── CATEGORY FILTER HELPERS ───────────────────────────────────
+
+// Returns a key for grouping a category_id by the current viewMode
+function groupKey(categoryId, categories, viewMode) {
+  if (!categoryId) return '__none__';
+  const cat = categories.find(c => c.id === categoryId);
+  if (!cat) return '__none__';
+  if (viewMode === 'nature')     return cat.nature || 'Uncategorised';
+  if (viewMode === 'spend_type') return cat.spend_type || 'Unknown';
+  if (viewMode === 'subcategory') return cat.id;
+  // group: use parent if subcategory, else self
+  return cat.parent_id || cat.id;
+}
+
+// Returns display label for a group key
+function groupLabel(key, categories, viewMode) {
+  if (key === '__none__') return 'Uncategorised';
+  if (viewMode === 'nature' || viewMode === 'spend_type') return key;
+  const cat = categories.find(c => c.id === key);
+  if (!cat) return 'Uncategorised';
+  return `${cat.icon || ''} ${cat.name}`.trim();
+}
+
+// Builds a function that returns true if a category passes all active data filters
+function buildCatFilter(categories, filterNatures, filterGroups, filterSubcats, filterSpendTypes) {
+  const noFilter = !filterNatures.length && !filterGroups.length && !filterSubcats.length && !filterSpendTypes.length;
+  if (noFilter) return () => true;
+
+  return (categoryId, txType) => {
+    // Transfer/adjustment have no category — always pass if no category filters
+    if (!categoryId) return noFilter;
+    const cat = categories.find(c => c.id === categoryId);
+    if (!cat) return false;
+    const groupId = cat.parent_id || cat.id;
+    if (filterNatures.length    && !filterNatures.includes(cat.nature))      return false;
+    if (filterGroups.length     && !filterGroups.includes(groupId))          return false;
+    if (filterSubcats.length    && cat.parent_id && !filterSubcats.includes(cat.id)) return false;
+    if (filterSpendTypes.length && !filterSpendTypes.includes(cat.spend_type)) return false;
+    return true;
+  };
+}
+
+// Builds available options for each cascading filter given the other active filters
+function buildCascadingOptions(categories, filterNatures, filterGroups, filterSubcats, filterSpendTypes) {
+  const groups  = categories.filter(c => !c.parent_id);
+  const subcats = categories.filter(c =>  c.parent_id);
+
+  const passNature    = c => !filterNatures.length    || filterNatures.includes(c.nature);
+  const passGroup     = c => !filterGroups.length     || filterGroups.includes(c.parent_id || c.id);
+  const passSubcat    = c => !filterSubcats.length    || !c.parent_id || filterSubcats.includes(c.id);
+  const passSpendType = c => !filterSpendTypes.length || filterSpendTypes.includes(c.spend_type);
+
+  // Available natures: cats that pass group + subcat + spendType
+  const availNatures = [...new Set(
+    categories.filter(c => passGroup(c) && passSubcat(c) && passSpendType(c) && c.nature).map(c => c.nature)
+  )].sort();
+
+  // Available groups: groups that pass nature + subcat + spendType
+  const availGroups = groups.filter(g => passNature(g) && passSubcat(g) && passSpendType(g));
+
+  // Available subcats: subcats that pass nature + group + spendType
+  const availSubcats = subcats.filter(s => passNature(s) && passGroup(s) && passSpendType(s));
+
+  // Available spend types: cats that pass nature + group + subcat
+  const availSpendTypes = [...new Set(
+    categories.filter(c => passNature(c) && passGroup(c) && passSubcat(c) && c.spend_type).map(c => c.spend_type)
+  )].sort();
+
+  return { availNatures, availGroups, availSubcats, availSpendTypes };
+}
+
+// Renders the cascading filter dropdown buttons
+function renderCascadingFilterDropdowns(cascOpts, filterNatures, filterGroups, filterSubcats, filterSpendTypes) {
+  const { availNatures, availGroups, availSubcats, availSpendTypes } = cascOpts;
+
+  const mkDropdown = (id, label, selected, options, valueKey, labelFn) => {
+    const count = selected.length;
+    const btnLabel = count ? `${label} (${count})` : label;
+    const opts = options.map(opt => {
+      const val = valueKey ? opt[valueKey] : opt;
+      const lbl = labelFn ? labelFn(opt) : String(opt);
+      const checked = selected.includes(String(val));
+      return `<label style="display:flex;align-items:center;gap:.5rem;padding:.3rem .625rem;cursor:pointer;white-space:nowrap">
+        <input type="checkbox" class="fc-filter-cb" data-filter="${id}" value="${escHtml(String(val))}"${checked?' checked':''}>
+        <span class="text-sm">${escHtml(lbl)}</span>
+      </label>`;
+    });
+    return `<div class="fc-filter-dd" style="position:relative">
+      <button class="btn btn-sm ${count?'btn-primary':'btn-ghost'} fc-filter-btn" data-filter="${id}">${escHtml(btnLabel)} ▾</button>
+      <div class="fc-filter-panel hidden" style="position:absolute;top:100%;left:0;z-index:200;background:var(--surface);border:1px solid var(--border);border-radius:.5rem;padding:.25rem 0;min-width:160px;max-height:220px;overflow-y:auto;box-shadow:0 4px 16px #0004">
+        ${opts.length ? opts.join('') : `<span class="text-muted text-sm" style="padding:.5rem .75rem;display:block">No options</span>`}
+      </div>
+    </div>`;
+  };
+
+  return [
+    mkDropdown('nature',    'Nature',     filterNatures,    availNatures,    null,   null),
+    mkDropdown('group',     'Group',      filterGroups,     availGroups,     'id',   g => `${g.icon||''} ${g.name}`.trim()),
+    mkDropdown('subcat',    'Subcategory',filterSubcats,    availSubcats,    'id',   s => `${s.icon||''} ${s.name}`.trim()),
+    mkDropdown('spendtype', 'Spend type', filterSpendTypes, availSpendTypes, null,   null),
+  ].join('');
 }
