@@ -214,6 +214,7 @@ function swatchRow(presets, current, area) {
 function renderThemeSection(state) {
   const theme = state.settings?.theme || {};
   const cur = { ...DEFAULT_THEME, ...theme };
+  const saved = Array.isArray(theme.saved) ? theme.saved : [];
 
   return `<div class="section">
     <div class="section-header"><div class="section-title">Theme</div>
@@ -254,10 +255,40 @@ function renderThemeSection(state) {
         </div>
       </div>
 
-      <div class="flex gap-2">
+      <div class="flex gap-2" style="flex-wrap:wrap;align-items:center">
         <button class="btn btn-primary btn-sm" id="theme-save-btn">Apply theme</button>
         <button class="btn btn-ghost btn-sm" id="theme-reset-btn">Reset to default</button>
+        <button class="btn btn-ghost btn-sm" id="theme-saveas-btn">Save as preset…</button>
       </div>
+
+      <div id="theme-saveas-form" class="hidden" style="display:none">
+        <div class="flex gap-2 items-center" style="flex-wrap:wrap">
+          <input class="form-input" id="theme-preset-name" placeholder="Preset name" style="max-width:200px" />
+          <button class="btn btn-primary btn-sm" id="theme-preset-confirm">Save preset</button>
+          <button class="btn btn-ghost btn-sm" id="theme-preset-cancel">Cancel</button>
+        </div>
+      </div>
+
+      ${saved.length > 0 ? `
+      <div>
+        <div class="form-label" style="margin-bottom:.5rem">Saved presets</div>
+        <div class="flex gap-2" style="flex-wrap:wrap">
+          ${saved.map((p, i) => `
+            <div class="theme-preset-card" data-index="${i}" style="
+              display:flex;align-items:center;gap:.4rem;padding:.35rem .6rem;
+              border:1px solid var(--border);border-radius:6px;cursor:pointer;
+              background:var(--surface);user-select:none">
+              <span style="display:flex;gap:3px">
+                <span style="width:12px;height:12px;border-radius:50%;background:${escHtml(p.bg)};border:1px solid var(--border)"></span>
+                <span style="width:12px;height:12px;border-radius:50%;background:${escHtml(p.text)};border:1px solid var(--border)"></span>
+                <span style="width:12px;height:12px;border-radius:50%;background:${escHtml(p.accent)};border:1px solid var(--border)"></span>
+              </span>
+              <span class="text-sm">${escHtml(p.name)}</span>
+              <button class="btn-icon theme-preset-delete text-muted" data-index="${i}" style="
+                background:none;border:none;cursor:pointer;padding:0;line-height:1;font-size:.85rem" title="Delete preset">✕</button>
+            </div>`).join('')}
+        </div>
+      </div>` : ''}
     </div>
   </div>`;
 }
@@ -265,6 +296,18 @@ function renderThemeSection(state) {
 function wireTheme(state) {
   const el = document.getElementById('page-settings');
   const themeChanges = {};
+
+  function getCurrentTheme() {
+    const current = state.settings?.theme || {};
+    return { ...DEFAULT_THEME, ...current, ...themeChanges };
+  }
+
+  async function persistTheme(updated) {
+    const { error } = await App.supabase.from('household_settings')
+      .update({ theme: updated }).eq('household_id', App.state.household.id);
+    if (!error && state.settings) state.settings.theme = updated;
+    return error;
+  }
 
   el.querySelectorAll('.theme-swatch').forEach(swatch => {
     swatch.addEventListener('click', () => {
@@ -282,11 +325,25 @@ function wireTheme(state) {
     inp.addEventListener('change', () => { themeChanges[inp.dataset.area] = inp.value; });
   });
 
-  document.getElementById('theme-reset-btn')?.addEventListener('click', async () => {
-    const { error } = await App.supabase.from('household_settings')
-      .update({ theme: DEFAULT_THEME }).eq('household_id', App.state.household.id);
+  // Apply theme
+  document.getElementById('theme-save-btn')?.addEventListener('click', async () => {
+    const updated = getCurrentTheme();
+    const error = await persistTheme(updated);
     if (!error) {
-      if (state.settings) state.settings.theme = { ...DEFAULT_THEME };
+      const { applyTheme } = await import('./utils.js');
+      applyTheme(updated);
+      App.toast('Theme applied', 'success');
+    } else {
+      App.toast('Error: ' + error.message, 'error');
+    }
+  });
+
+  // Reset to default
+  document.getElementById('theme-reset-btn')?.addEventListener('click', async () => {
+    const existing = state.settings?.theme || {};
+    const updated = { ...DEFAULT_THEME, saved: existing.saved || [] };
+    const error = await persistTheme(updated);
+    if (!error) {
       const { applyTheme } = await import('./utils.js');
       applyTheme(DEFAULT_THEME);
       App.toast('Theme reset to default', 'success');
@@ -296,20 +353,81 @@ function wireTheme(state) {
     }
   });
 
-  document.getElementById('theme-save-btn')?.addEventListener('click', async () => {
-    const current = state.settings?.theme || {};
-    const updated = { ...DEFAULT_THEME, ...current, ...themeChanges };
+  // Toggle save-as form
+  document.getElementById('theme-saveas-btn')?.addEventListener('click', () => {
+    const form = document.getElementById('theme-saveas-form');
+    form.style.display = 'flex';
+    form.classList.remove('hidden');
+    document.getElementById('theme-preset-name')?.focus();
+  });
 
-    const { error } = await App.supabase.from('household_settings')
-      .update({ theme: updated }).eq('household_id', App.state.household.id);
+  document.getElementById('theme-preset-cancel')?.addEventListener('click', () => {
+    const form = document.getElementById('theme-saveas-form');
+    form.style.display = 'none';
+    form.classList.add('hidden');
+    document.getElementById('theme-preset-name').value = '';
+  });
+
+  // Save preset
+  document.getElementById('theme-preset-confirm')?.addEventListener('click', async () => {
+    const name = document.getElementById('theme-preset-name')?.value.trim();
+    if (!name) { App.toast('Enter a name', 'error'); return; }
+
+    const cur = getCurrentTheme();
+    const preset = { name, accent: cur.accent, bg: cur.bg, text: cur.text };
+    const existing = state.settings?.theme || {};
+    const saved = Array.isArray(existing.saved) ? [...existing.saved] : [];
+    saved.push(preset);
+    const updated = { ...cur, saved };
+    const error = await persistTheme(updated);
     if (!error) {
-      if (state.settings) state.settings.theme = updated;
-      const { applyTheme } = await import('./utils.js');
-      applyTheme(updated);
-      App.toast('Theme applied', 'success');
+      App.toast(`Preset "${name}" saved`, 'success');
+      render(state);
     } else {
       App.toast('Error: ' + error.message, 'error');
     }
+  });
+
+  // Load preset
+  el.querySelectorAll('.theme-preset-card').forEach(card => {
+    card.addEventListener('click', async e => {
+      if (e.target.classList.contains('theme-preset-delete')) return;
+      const i = parseInt(card.dataset.index);
+      const existing = state.settings?.theme || {};
+      const saved = Array.isArray(existing.saved) ? existing.saved : [];
+      const preset = saved[i];
+      if (!preset) return;
+      const updated = { ...existing, accent: preset.accent, bg: preset.bg, text: preset.text };
+      const error = await persistTheme(updated);
+      if (!error) {
+        const { applyTheme } = await import('./utils.js');
+        applyTheme(updated);
+        App.toast(`"${preset.name}" loaded`, 'success');
+        render(state);
+      } else {
+        App.toast('Error: ' + error.message, 'error');
+      }
+    });
+  });
+
+  // Delete preset
+  el.querySelectorAll('.theme-preset-delete').forEach(btn => {
+    btn.addEventListener('click', async e => {
+      e.stopPropagation();
+      const i = parseInt(btn.dataset.index);
+      const existing = state.settings?.theme || {};
+      const saved = Array.isArray(existing.saved) ? [...existing.saved] : [];
+      const name = saved[i]?.name || 'preset';
+      saved.splice(i, 1);
+      const updated = { ...existing, saved };
+      const error = await persistTheme(updated);
+      if (!error) {
+        App.toast(`"${name}" deleted`, 'success');
+        render(state);
+      } else {
+        App.toast('Error: ' + error.message, 'error');
+      }
+    });
   });
 }
 
