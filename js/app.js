@@ -237,7 +237,6 @@ async function loadAllData() {
     { data: snapshots },
     { data: allProfiles },
     { data: settings },
-    { data: customAccountTypes },
   ] = await Promise.all([
     supabase.from('accounts').select('*').eq('household_id', hid).order('created_at'),
     supabase.from('categories').select('*').eq('household_id', hid).order('sort_order'),
@@ -247,8 +246,12 @@ async function loadAllData() {
     supabase.from('budget_snapshots').select('*').eq('household_id', hid).order('period_start', { ascending: false }),
     supabase.from('profiles').select('*').eq('household_id', hid),
     supabase.from('household_settings').select('*').eq('household_id', hid).single(),
-    supabase.from('custom_account_types').select('*').eq('household_id', hid).order('label'),
   ]);
+
+  // Load custom account types separately so a missing table never breaks the main load
+  const { data: customAccountTypes } = await supabase
+    .from('custom_account_types').select('*').eq('household_id', hid).order('label')
+    .catch(() => ({ data: [] }));
 
   state.accounts            = accounts || [];
   state.categories          = categories || [];
