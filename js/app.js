@@ -666,19 +666,15 @@ async function init() {
 
   // Auth state listener — handles all session events
   supabase.auth.onAuthStateChange(async (event, session) => {
-    console.log('[auth] event:', event, 'user:', session?.user?.email, 'expires_at:', session?.expires_at);
-    clearTimeout(authDeadline); // got a response — cancel fallback
+    console.log('[auth] event:', event, 'user:', session?.user?.email);
+    clearTimeout(authDeadline);
 
-    if (event === 'INITIAL_SESSION') {
-      if (!session?.user) { showAuthScreen(); return; }
-      // Only boot immediately if token is still valid; otherwise wait for SIGNED_IN
-      const expiresAt = (session.expires_at || 0) * 1000;
-      if (expiresAt > Date.now() + 5000) {
+    if (event === 'INITIAL_SESSION' || event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED') {
+      if (session?.user) {
         if (!isSigningUp) await boot(session.user);
+      } else if (event === 'INITIAL_SESSION') {
+        showAuthScreen();
       }
-      // else token expired — Supabase will refresh and fire SIGNED_IN
-    } else if (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED') {
-      if (session?.user && !isSigningUp) await boot(session.user);
     } else if (event === 'SIGNED_OUT') {
       if (!bootInProgress) showAuthScreen();
     }
