@@ -274,11 +274,13 @@ function renderDisplaySection(state) {
       <div class="divider" style="margin:1.25rem 0"></div>
       <div class="form-group">
         <label class="form-label">Navigation order</label>
-        <div class="form-hint">Drag to reorder (not yet interactive — edit order below)</div>
-        <div id="nav-order-list" style="margin-top:.5rem">
-          ${navOrder.map((page, i) => `<div class="flex items-center gap-2" style="padding:.35rem 0;border-bottom:1px solid var(--border)">
-            <span class="drag-handle text-muted">⠿</span>
-            <span>${navLabels[page] || page}</span>
+        <div class="form-hint">Drag to reorder — saved automatically</div>
+        <div id="nav-order-list" style="margin-top:.5rem;display:flex;flex-direction:column;gap:2px">
+          ${navOrder.map(page => `<div class="nav-order-row" data-id="${page}"
+            style="display:flex;align-items:center;gap:.6rem;padding:.35rem .5rem;
+                   border:1px solid var(--border);border-radius:var(--radius);background:var(--surface)">
+            <span style="cursor:grab;color:var(--text-muted);user-select:none">⠿</span>
+            <span class="text-sm">${navLabels[page] || page}</span>
           </div>`).join('')}
         </div>
       </div>
@@ -287,6 +289,21 @@ function renderDisplaySection(state) {
 }
 
 function wireDisplay(state) {
+  wireDragReorder(
+    document.getElementById('nav-order-list'),
+    '.nav-order-row[data-id]',
+    async (ids) => {
+      const newPrefs = { ...state.prefs, nav_order: ids };
+      const { error } = await App.supabase.from('profiles')
+        .update({ preferences: newPrefs }).eq('id', state.user.id);
+      if (!error) {
+        state.prefs.nav_order = ids;
+        App.renderSidebarNav();
+        App.toast('Nav order saved', 'success');
+      }
+    }
+  );
+
   document.getElementById('disp-save-salary')?.addEventListener('click', async () => {
     const sdA = parseInt(document.getElementById('disp-salary-a')?.value) || null;
     const sdB = parseInt(document.getElementById('disp-salary-b')?.value) || null;
