@@ -1,6 +1,6 @@
 /* ═══════════════════════════════════════════════════════════════
    settings.js — Settings page
-   Sections: Household, Display, Theme, Accounts, Categories, Recurring, Account
+   Sections: Household, Display, Accounts, Categories, Recurring Templates, Theme, My Account
 ═══════════════════════════════════════════════════════════════ */
 
 import {
@@ -166,25 +166,25 @@ export function render(state) {
     <div class="page-header">
       <div>
         <div class="page-title">Settings</div>
-        <div class="page-subtitle">Household · Display · Theme · Accounts · Categories</div>
+        <div class="page-subtitle">Household · Display · Accounts · Categories · Recurring · Theme</div>
       </div>
     </div>
 
     ${renderHouseholdSection(state)}
     ${renderDisplaySection(state)}
-    ${renderThemeSection(state)}
     ${renderAccountsSection(state)}
     ${renderCategoriesSection(state)}
     ${renderRecurringSection(state)}
+    ${renderThemeSection(state)}
     ${renderAccountSection(state)}
   `;
 
   wireHousehold(state);
   wireDisplay(state);
-  wireTheme(state);
   wireAccountsSection(state);
   wireCategoriesSection(state);
   wireRecurringSection(state);
+  wireTheme(state);
 }
 
 // ── 1. HOUSEHOLD ──────────────────────────────────────────────
