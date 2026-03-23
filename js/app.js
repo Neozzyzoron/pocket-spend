@@ -667,41 +667,43 @@ async function init() {
     });
   });
 
-  // ── Auth: INITIAL_SESSION fires immediately from localStorage — no network needed.
-  // This is fast even on slow connections. For expired tokens the Supabase client
-  // auto-refreshes transparently during the first API call inside boot().
-  // TOKEN_REFRESHED is intentionally ignored — it fires every ~50 min and must
-  // not trigger a re-boot mid-session (which could show the auth screen on failure).
+  // ── Auth state machine ────────────────────────────────────────
+  // CRITICAL: the onAuthStateChange callback MUST be synchronous (no async/await).
+  // Supabase v2 awaits all callbacks inside _notifyAllSubscribers. If our callback
+  // makes any supabase call (including getSession inside a DB query), it creates a
+  // circular wait: _initialize awaits our callback, our callback awaits getSession,
+  // getSession awaits _initialize → deadlock on every page reload.
+  //
+  // Fix: return synchronously, defer all Supabase work to the next event-loop tick
+  // via setTimeout(0) so _initialize can complete before we touch the client.
 
-  // Safety net: if INITIAL_SESSION never fires within 8s, fall back to getSession().
-  const authSafety = setTimeout(async () => {
+  const authSafety = setTimeout(() => {
     if (booted || bootInProgress) return;
-    console.warn('[auth] INITIAL_SESSION never fired — falling back to getSession()');
-    const { data: { session } } = await supabase.auth.getSession();
-    if (session?.user && !bootInProgress) await boot(session.user);
-    else if (!session?.user) showAuthScreen();
+    console.warn('[auth] INITIAL_SESSION never fired within 8s');
+    showAuthScreen();
   }, 8000);
 
-  supabase.auth.onAuthStateChange(async (event, session) => {
+  supabase.auth.onAuthStateChange((event, session) => {
     if (event === 'INITIAL_SESSION') {
       clearTimeout(authSafety);
       if (session?.user && !isSigningUp) {
-        await boot(session.user);
+        setTimeout(() => boot(session.user), 0);
       } else if (!session?.user) {
-        showAuthScreen();
+        setTimeout(() => showAuthScreen(), 0);
       }
-      // user + isSigningUp: signup flow calls boot() directly once DB setup is done
+      // user + isSigningUp: signup flow calls boot() directly after DB setup
 
     } else if (event === 'SIGNED_IN' && !booted && !isSigningUp) {
       clearTimeout(authSafety);
-      await boot(session.user);
+      setTimeout(() => boot(session.user), 0);
 
     } else if (event === 'SIGNED_OUT') {
       clearTimeout(authSafety);
       booted = false;
       if (!bootInProgress) showAuthScreen();
     }
-    // TOKEN_REFRESHED: deliberately ignored
+    // TOKEN_REFRESHED: deliberately ignored — happens every ~50 min and must
+    // not trigger a re-boot mid-session.
   });
 }
 

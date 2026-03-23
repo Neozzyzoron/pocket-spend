@@ -6,11 +6,7 @@
 const SUPABASE_URL = 'https://blnxkxhwllawdzghvwyy.supabase.co';
 const SUPABASE_ANON = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImJsbnhreGh3bGxhd2R6Z2h2d3l5Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzM4NzYzNzgsImV4cCI6MjA4OTQ1MjM3OH0.jPe8eFxKHCrSRr-m6QU8iQvg2OZ0r4bQr6i1NPtnd_w';
 
-// Disable the Web Locks guard on token refresh — it causes page reloads to hang
-// indefinitely when the lock isn't released cleanly between navigations.
-export const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON, {
-  auth: { lock: async (_name, _timeout, fn) => fn() },
-});
+export const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON);
 
 // ── FORMAT HELPERS ───────────────────────────────────────────
 
