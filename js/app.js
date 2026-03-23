@@ -517,6 +517,14 @@ let bootInProgress = false;
 async function boot(user) {
   if (bootInProgress) { console.log('[boot] already in progress, skipping'); return; }
   bootInProgress = true;
+
+  // Hard timeout: if boot hangs > 20s, show auth screen
+  const bootTimeout = setTimeout(() => {
+    console.error('[boot] timed out after 20s');
+    bootInProgress = false;
+    showAuthScreen();
+  }, 20000);
+
   try {
     state.user = user;
     console.log('[boot] loading profile...');
@@ -528,6 +536,7 @@ async function boot(user) {
 
     if (profileError || !profile || !profile.household_id) {
       console.warn('[boot] no profile/household_id', profileError);
+      clearTimeout(bootTimeout);
       bootInProgress = false;
       showAuthScreen();
       return;
@@ -539,6 +548,7 @@ async function boot(user) {
 
     if (householdError || !household) {
       console.warn('[boot] no household', householdError);
+      clearTimeout(bootTimeout);
       bootInProgress = false;
       showAuthScreen();
       return;
@@ -576,9 +586,11 @@ async function boot(user) {
     const validPage = NAV_PAGES[lastPage] ? lastPage : 'dashboard';
     console.log('[boot] navigating to', validPage);
     navigate(validPage);
+    clearTimeout(bootTimeout);
     bootInProgress = false;
   } catch (err) {
     console.error('[boot] failed:', err);
+    clearTimeout(bootTimeout);
     bootInProgress = false;
     showAuthScreen();
   }
@@ -643,19 +655,33 @@ async function init() {
     });
   });
 
+  // Safety net: if nothing resolves auth within 12s, check session manually
+  const authDeadline = setTimeout(async () => {
+    if (bootInProgress) return;
+    console.warn('[auth] deadline reached — falling back to getSession');
+    const { data: { session } } = await supabase.auth.getSession();
+    if (session?.user) await boot(session.user);
+    else showAuthScreen();
+  }, 12000);
+
   // Auth state listener — handles all session events
   supabase.auth.onAuthStateChange(async (event, session) => {
-    console.log('[auth] event:', event, 'user:', session?.user?.email);
-    if (['SIGNED_IN', 'INITIAL_SESSION', 'TOKEN_REFRESHED'].includes(event)) {
-      if (session?.user) {
-        if (isSigningUp) return; // signup flow handles boot manually
-        await boot(session.user);
-      } else if (event === 'INITIAL_SESSION') {
-        // No session on startup — show login
-        showAuthScreen();
+    console.log('[auth] event:', event, 'user:', session?.user?.email, 'expires_at:', session?.expires_at);
+    clearTimeout(authDeadline); // got a response — cancel fallback
+
+    if (event === 'INITIAL_SESSION') {
+      if (!session?.user) { showAuthScreen(); return; }
+      // Only boot immediately if token is still valid; otherwise wait for SIGNED_IN
+      const expiresAt = (session.expires_at || 0) * 1000;
+      if (expiresAt > Date.now() + 5000) {
+        if (!isSigningUp) await boot(session.user);
       }
+      // else token expired — Supabase will refresh and fire SIGNED_IN
+    } else if (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED') {
+      if (session?.user && !isSigningUp) await boot(session.user);
+    } else if (event === 'SIGNED_OUT') {
+      if (!bootInProgress) showAuthScreen();
     }
-    // SIGNED_OUT is ignored here — explicit signOut() does location.reload()
   });
 }
 
