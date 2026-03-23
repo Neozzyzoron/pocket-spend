@@ -531,9 +531,12 @@ async function boot(user) {
     state.user = user;
     console.log('[boot] loading profile...');
 
-    // Fetch profile and household separately to avoid circular RLS in join
+    // Fetch profile — 8s timeout so a paused/unreachable Supabase fails fast
+    const profileAbort = new AbortController();
+    const profileTimer = setTimeout(() => profileAbort.abort(), 8000);
     const { data: profile, error: profileError } = await supabase
-      .from('profiles').select('*').eq('id', user.id).single();
+      .from('profiles').select('*').eq('id', user.id).abortSignal(profileAbort.signal).single();
+    clearTimeout(profileTimer);
     console.log('[boot] profile result:', { profile, profileError });
 
     if (profileError || !profile || !profile.household_id) {
@@ -544,8 +547,11 @@ async function boot(user) {
       return;
     }
 
+    const householdAbort = new AbortController();
+    const householdTimer = setTimeout(() => householdAbort.abort(), 8000);
     const { data: household, error: householdError } = await supabase
-      .from('households').select('*').eq('id', profile.household_id).single();
+      .from('households').select('*').eq('id', profile.household_id).abortSignal(householdAbort.signal).single();
+    clearTimeout(householdTimer);
     console.log('[boot] household result:', { household, householdError });
 
     if (householdError || !household) {
