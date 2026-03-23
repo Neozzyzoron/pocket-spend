@@ -505,6 +505,7 @@ h3 { font-size: 1rem; font-weight: 600; }
   display: grid;
   gap: .75rem;
   margin-bottom: 1.5rem;
+  /* inline style sets desktop cols; media queries override responsively */
 }
 
 /* ── BADGES ──────────────────────────────────────────────────── */
@@ -773,6 +774,11 @@ h3 { font-size: 1rem; font-weight: 600; }
    RESPONSIVE
 ══════════════════════════════════════════════════════════════ */
 
+/* ── MEDIUM DESKTOP (sidebar visible, tighter content) ───────── */
+@media (max-width: 1100px) and (min-width: 769px) {
+  .stat-grid { grid-template-columns: repeat(2, 1fr) !important; }
+}
+
 /* ── TABLET (481–768) ────────────────────────────────────────── */
 @media (max-width: 768px) {
   .sidebar {
@@ -792,6 +798,8 @@ h3 { font-size: 1rem; font-weight: 600; }
   .page-header { margin-bottom: 1rem; }
   .page-title { font-size: 1.15rem; }
 
+  .stat-grid { grid-template-columns: repeat(2, 1fr) !important; }
+
   .modal { max-width: 100%; margin: .5rem; }
   .modal--lg { max-width: 100%; }
 
@@ -800,6 +808,8 @@ h3 { font-size: 1rem; font-weight: 600; }
 
 /* ── MOBILE (≤480) ───────────────────────────────────────────── */
 @media (max-width: 480px) {
+  .stat-grid { grid-template-columns: repeat(2, 1fr) !important; }
+
   .page { padding: .75rem; }
 
   .card { padding: .875rem; }
