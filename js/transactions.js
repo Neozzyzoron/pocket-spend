@@ -9,9 +9,36 @@ import {
 } from './utils.js';
 
 // ── STATE ─────────────────────────────────────────────────────
-let filters = { search: '', status: 'all', type: '', category: '', account: '', person: '' };
+let filters = { search: '', status: 'all', type: '', category: '', account: '', person: '', month: '' };
 let editingId = null;
 let selectedIds = new Set();
+let viewMode = 'flat'; // flat | nature | group | sub | hybrid
+
+const ALL_COLUMNS = [
+  { id: 'date',          label: 'Date' },
+  { id: 'description',   label: 'Description' },
+  { id: 'parent_group',  label: 'Parent group' },
+  { id: 'category',      label: 'Category' },
+  { id: 'nature',        label: 'Nature' },
+  { id: 'spend_type',    label: 'Spend type' },
+  { id: 'type',          label: 'Type' },
+  { id: 'recurring',     label: 'Recurring' },
+  { id: 'amount',        label: 'Amount' },
+  { id: 'account',       label: 'Account' },
+  { id: 'running_balance', label: 'Running balance' },
+  { id: 'person',        label: 'Person' },
+  { id: 'status',        label: 'Status' },
+  { id: 'notes',         label: 'Notes' },
+];
+const DEFAULT_COLUMNS = ['date','description','category','type','amount','account','person','status'];
+
+function getVisibleCols(state) {
+  const saved = state.prefs?.columns;
+  const base = saved?.length ? saved : DEFAULT_COLUMNS;
+  // running_balance only when single account filter active
+  if (filters.account) return base.includes('running_balance') ? base : base;
+  return base.filter(c => c !== 'running_balance');
+}
 
 // ── MAIN RENDER ───────────────────────────────────────────────
 export function render(state) {
@@ -29,8 +56,20 @@ export function render(state) {
         <div class="page-subtitle" id="tx-count-label">${state.transactions.length} transactions</div>
       </div>
       <div class="page-actions">
+        <button class="btn btn-ghost btn-sm" id="tx-columns-btn">Columns ▾</button>
         <button class="btn btn-ghost btn-sm" id="tx-export-btn">↓ CSV</button>
         <button class="btn btn-primary" id="tx-add-btn">+ Add transaction</button>
+      </div>
+    </div>
+
+    <!-- View modes -->
+    <div class="section" style="padding-bottom:0;padding-top:.5rem">
+      <div class="toggle-group">
+        <button class="toggle-group-btn tx-view-btn${viewMode==='flat'?' active':''}" data-view="flat">Flat</button>
+        <button class="toggle-group-btn tx-view-btn${viewMode==='nature'?' active':''}" data-view="nature">Nature</button>
+        <button class="toggle-group-btn tx-view-btn${viewMode==='group'?' active':''}" data-view="group">Group</button>
+        <button class="toggle-group-btn tx-view-btn${viewMode==='sub'?' active':''}" data-view="sub">Subcategory</button>
+        <button class="toggle-group-btn tx-view-btn${viewMode==='hybrid'?' active':''}" data-view="hybrid">Hybrid</button>
       </div>
     </div>
 
@@ -51,9 +90,27 @@ export function render(state) {
           <option value="">All accounts</option>
           ${state.accounts.filter(a=>!a.is_archived).map(a => `<option value="${a.id}"${filters.account===a.id?' selected':''}>${escHtml(a.name)}</option>`).join('')}
         </select>
+        <select class="form-select" id="tx-filter-category" style="width:auto">
+          <option value="">All categories</option>
+          ${state.categories.filter(c => !c.parent_id).map(g => {
+            const subs = state.categories.filter(c => c.parent_id === g.id);
+            if (subs.length) {
+              return `<optgroup label="${escHtml((g.icon||'')+' '+g.name)}">
+                <option value="${g.id}"${filters.category===g.id?' selected':''}>${escHtml((g.icon||'')+' '+g.name)} (group)</option>
+                ${subs.map(s => `<option value="${s.id}"${filters.category===s.id?' selected':''}>${escHtml('\u00a0\u00a0'+(s.icon||'')+' '+s.name)}</option>`).join('')}
+              </optgroup>`;
+            }
+            return `<option value="${g.id}"${filters.category===g.id?' selected':''}>${escHtml((g.icon||'')+' '+g.name)}</option>`;
+          }).join('')}
+        </select>
         <select class="form-select" id="tx-filter-person" style="width:auto">
           <option value="">All people</option>
           ${state.profiles.map(p => `<option value="${p.id}"${filters.person===p.id?' selected':''}>${escHtml(p.display_name)}</option>`).join('')}
+        </select>
+        <select class="form-select" id="tx-filter-month" style="width:auto">
+          <option value="">All months</option>
+          ${[...new Set(state.transactions.map(t => t.date.slice(0,7)))].sort().reverse()
+              .map(m => `<option value="${m}"${filters.month===m?' selected':''}>${m}</option>`).join('')}
         </select>
         ${selectedIds.size ? `<button class="btn btn-danger btn-sm" id="tx-bulk-delete">Delete (${selectedIds.size})</button>` : ''}
         <button class="btn btn-ghost btn-sm" id="tx-clear-filters">Clear filters</button>
@@ -69,12 +126,18 @@ export function render(state) {
   // Wire events
   document.getElementById('tx-add-btn').addEventListener('click', () => openTxModal(state));
   document.getElementById('tx-export-btn').addEventListener('click', () => exportCSV(state));
+  document.getElementById('tx-columns-btn').addEventListener('click', () => openColumnsModal(state));
+  el.querySelectorAll('.tx-view-btn').forEach(btn => {
+    btn.addEventListener('click', () => { viewMode = btn.dataset.view; render(state); });
+  });
   document.getElementById('tx-search').addEventListener('input', e => { filters.search = e.target.value; renderTable(state); });
   document.getElementById('tx-filter-type').addEventListener('change', e => { filters.type = e.target.value; renderTable(state); });
   document.getElementById('tx-filter-account').addEventListener('change', e => { filters.account = e.target.value; renderTable(state); });
+  document.getElementById('tx-filter-category').addEventListener('change', e => { filters.category = e.target.value; renderTable(state); });
   document.getElementById('tx-filter-person').addEventListener('change', e => { filters.person = e.target.value; renderTable(state); });
+  document.getElementById('tx-filter-month').addEventListener('change', e => { filters.month = e.target.value; renderTable(state); });
   document.getElementById('tx-clear-filters').addEventListener('click', () => {
-    filters = { search: '', status: 'all', type: '', category: '', account: '', person: '' };
+    filters = { search: '', status: 'all', type: '', category: '', account: '', person: '', month: '' };
     render(state);
   });
   el.querySelectorAll('.tx-status-btn').forEach(btn => {
@@ -95,6 +158,13 @@ function getFiltered(state) {
     if (filters.type && tx.type !== filters.type) return false;
     if (filters.account && tx.account_id !== filters.account && tx.to_account_id !== filters.account) return false;
     if (filters.person && tx.user_id !== filters.person) return false;
+    if (filters.category) {
+      // Match direct or parent category
+      const cat = categories.find(c => c.id === tx.category_id);
+      if (!cat) return false;
+      if (cat.id !== filters.category && cat.parent_id !== filters.category) return false;
+    }
+    if (filters.month && !tx.date.startsWith(filters.month)) return false;
     if (search) {
       const desc = (tx.description || '').toLowerCase();
       const notes = (tx.notes || '').toLowerCase();
@@ -130,23 +200,45 @@ function renderTable(state) {
     return;
   }
 
+  const cols = getVisibleCols(state);
+  const colSpan = cols.length + 2; // checkbox + actions
+
+  const headerCells = cols.map(c => {
+    const meta = ALL_COLUMNS.find(x => x.id === c);
+    return `<th${c === 'amount' || c === 'running_balance' ? ' class="amount-col"' : ''}>${meta?.label || c}</th>`;
+  }).join('');
+
+  // Build running balance map if needed
+  let runningBalMap = {};
+  if (cols.includes('running_balance') && filters.account) {
+    const accTx = [...filtered].sort((a,b) => a.date.localeCompare(b.date));
+    let bal = 0;
+    const acc = state.accounts.find(a => a.id === filters.account);
+    bal = acc ? Number(acc.opening_balance || 0) : 0;
+    for (const tx of accTx) {
+      const sign = ['income','withdrawal','transfer'].includes(tx.type) && tx.to_account_id === filters.account ? 1
+                 : tx.account_id === filters.account && ['spend','savings','investment','transfer','debt_payment'].includes(tx.type) ? -1
+                 : tx.account_id === filters.account ? 1 : 0;
+      bal += sign * Number(tx.amount);
+      runningBalMap[tx.id] = bal;
+    }
+  }
+
+  let bodyHtml;
+  if (viewMode === 'flat') {
+    bodyHtml = filtered.map(tx => renderRow(tx, state, cur, cols, runningBalMap)).join('');
+  } else {
+    bodyHtml = renderGroupedRows(filtered, state, cur, cols, runningBalMap, colSpan);
+  }
+
   container.innerHTML = `<div class="table-wrap">
     <table class="table" id="tx-table">
       <thead><tr>
         <th style="width:32px"><input type="checkbox" id="tx-select-all" /></th>
-        <th>Date</th>
-        <th>Description</th>
-        <th>Category</th>
-        <th>Type</th>
-        <th>Account</th>
-        <th>Person</th>
-        <th class="amount-col">Amount</th>
-        <th>Status</th>
+        ${headerCells}
         <th style="width:80px"></th>
       </tr></thead>
-      <tbody id="tx-tbody">
-        ${filtered.map(tx => renderRow(tx, state, cur)).join('')}
-      </tbody>
+      <tbody id="tx-tbody">${bodyHtml}</tbody>
     </table>
   </div>`;
 
@@ -209,33 +301,39 @@ function renderTable(state) {
   });
 }
 
-function renderRow(tx, state, cur) {
+function renderRow(tx, state, cur, cols = DEFAULT_COLUMNS, runningBalMap = {}) {
   const { categories, accounts, profiles } = state;
   const cat = categories.find(c => c.id === tx.category_id);
+  const group = cat?.parent_id ? categories.find(c => c.id === cat.parent_id) : cat;
   const acc = accounts.find(a => a.id === tx.account_id);
+  const toAcc = accounts.find(a => a.id === tx.to_account_id);
   const person = profiles.find(p => p.id === tx.user_id);
   const isNeg = ['spend','savings','investment','transfer','debt_payment'].includes(tx.type);
   const isPending = tx.status === 'pending';
-  const isEdit = editingId === tx.id;
   const checked = selectedIds.has(tx.id);
 
-  if (isEdit) {
-    return renderInlineEditRow(tx, state, cur);
-  }
+  if (editingId === tx.id) return renderInlineEditRow(tx, state, cur, cols);
+
+  const cellMap = {
+    date:            `<td class="text-sm" style="white-space:nowrap">${fmtDate(tx.date, 'short')}</td>`,
+    description:     `<td class="truncate" style="max-width:200px">${escHtml(tx.description || '—')}${tx.is_recurring ? ' <span class="text-muted" title="Recurring">↻</span>' : ''}</td>`,
+    parent_group:    `<td class="text-sm text-muted">${group && cat?.parent_id ? escHtml((group.icon||'')+' '+group.name) : '—'}</td>`,
+    category:        `<td class="text-sm">${cat ? escHtml((cat.icon||'')+' '+cat.name) : '—'}</td>`,
+    nature:          `<td class="text-sm text-muted">${cat?.nature || '—'}</td>`,
+    spend_type:      `<td class="text-sm text-muted">${cat?.spend_type || '—'}</td>`,
+    type:            `<td><span class="${typeBadgeClass(tx.type)}">${TX_TYPE_LABELS[tx.type] || tx.type}</span></td>`,
+    recurring:       `<td class="text-sm text-muted">${tx.is_recurring ? '↻ ' + (tx.recur_freq || '') : '—'}</td>`,
+    amount:          `<td class="amount-col text-mono ${isNeg ? 'negative' : 'positive'}">${isNeg ? '−' : '+'}${fmtCurrency(tx.amount, cur)}</td>`,
+    account:         `<td class="text-sm text-muted">${acc ? escHtml(acc.name) + (toAcc ? ' → ' + escHtml(toAcc.name) : '') : '—'}</td>`,
+    running_balance: `<td class="amount-col text-mono">${runningBalMap[tx.id] != null ? fmtCurrency(runningBalMap[tx.id], cur) : '—'}</td>`,
+    person:          `<td class="text-sm text-muted">${person ? escHtml(person.display_name) : '—'}</td>`,
+    status:          `<td>${isPending ? '<span class="badge badge-pending">Pending</span>' : '<span class="badge badge-green">✓</span>'}</td>`,
+    notes:           `<td class="text-sm text-muted truncate" style="max-width:160px">${escHtml(tx.notes || '—')}</td>`,
+  };
 
   return `<tr class="${isPending ? 'text-muted' : ''}" data-id="${tx.id}">
     <td><input type="checkbox" class="tx-select-cb" data-id="${tx.id}" ${checked ? 'checked' : ''} /></td>
-    <td class="text-sm" style="white-space:nowrap">${fmtDate(tx.date, 'short')}</td>
-    <td class="truncate" style="max-width:200px">
-      ${escHtml(tx.description || '—')}
-      ${tx.is_recurring ? '<span class="text-muted" title="Recurring">↻</span>' : ''}
-    </td>
-    <td class="text-sm">${cat ? escHtml(cat.icon + ' ' + cat.name) : '—'}</td>
-    <td><span class="${typeBadgeClass(tx.type)}">${TX_TYPE_LABELS[tx.type] || tx.type}</span></td>
-    <td class="text-sm text-muted">${acc ? escHtml(acc.name) : '—'}</td>
-    <td class="text-sm text-muted">${person ? escHtml(person.display_name) : '—'}</td>
-    <td class="amount-col text-mono ${isNeg ? 'negative' : 'positive'}">${isNeg ? '−' : '+'}${fmtCurrency(tx.amount, cur)}</td>
-    <td>${isPending ? '<span class="badge badge-pending">Pending</span>' : '<span class="badge badge-green">✓</span>'}</td>
+    ${cols.map(c => cellMap[c] || '').join('')}
     <td>
       <div class="flex gap-1">
         ${isPending ? `<button class="btn btn-ghost btn-sm tx-row-confirm" data-id="${tx.id}" title="Confirm">✓</button>` : ''}
@@ -244,6 +342,52 @@ function renderRow(tx, state, cur) {
       </div>
     </td>
   </tr>`;
+}
+
+function renderGroupedRows(filtered, state, cur, cols, runningBalMap, colSpan) {
+  const { categories } = state;
+
+  function getGroupKey(tx) {
+    const cat = categories.find(c => c.id === tx.category_id);
+    if (viewMode === 'nature') return cat?.nature || 'Uncategorised';
+    if (viewMode === 'group') {
+      const g = cat?.parent_id ? categories.find(c => c.id === cat.parent_id) : cat;
+      return g ? (g.icon || '') + ' ' + g.name : 'Uncategorised';
+    }
+    if (viewMode === 'sub') return cat ? (cat.icon || '') + ' ' + cat.name : 'Uncategorised';
+    if (viewMode === 'hybrid') {
+      const g = cat?.parent_id ? categories.find(c => c.id === cat.parent_id) : cat;
+      return g ? (g.icon || '') + ' ' + g.name : 'Uncategorised';
+    }
+    return '';
+  }
+
+  const groups = {};
+  for (const tx of filtered) {
+    const key = getGroupKey(tx);
+    if (!groups[key]) groups[key] = [];
+    groups[key].push(tx);
+  }
+
+  return Object.entries(groups).map(([key, txs]) => {
+    const total = txs.reduce((s, tx) => s + (
+      ['spend','savings','investment','transfer','debt_payment'].includes(tx.type) ? -Number(tx.amount) : Number(tx.amount)
+    ), 0);
+    const headerRow = `<tr style="background:var(--surface2)">
+      <td></td>
+      <td colspan="${cols.length}" style="font-weight:600;padding:.5rem .75rem">
+        ${escHtml(key)}
+        <span class="text-muted text-sm" style="margin-left:.5rem">${txs.length} tx</span>
+      </td>
+      <td class="amount-col text-mono ${total >= 0 ? 'positive' : 'negative'}" style="font-weight:600">
+        ${total >= 0 ? '+' : '−'}${fmtCurrency(Math.abs(total), App.currency())}
+      </td>
+    </tr>`;
+    const txRows = viewMode === 'hybrid'
+      ? txs.map(tx => renderRow(tx, state, cur, cols, runningBalMap)).join('')
+      : txs.map(tx => renderRow(tx, state, cur, cols, runningBalMap)).join('');
+    return headerRow + txRows;
+  }).join('');
 }
 
 function renderMobileCard(tx, state, cur) {
@@ -266,7 +410,7 @@ function renderMobileCard(tx, state, cur) {
 }
 
 // ── INLINE EDIT ROW ───────────────────────────────────────────
-function renderInlineEditRow(tx, state, cur) {
+function renderInlineEditRow(tx, state, cur, cols = DEFAULT_COLUMNS) {
   const { categories, accounts } = state;
   const needsCategory = !['transfer','adjustment'].includes(tx.type);
   const catOpts = buildCategoryOptions(categories, tx.category_id);
@@ -276,29 +420,22 @@ function renderInlineEditRow(tx, state, cur) {
 
   return `<tr class="tx-inline-edit" data-id="${tx.id}">
     <td></td>
-    <td><input class="form-input" type="date" id="ie-date" value="${tx.date}" style="width:130px" /></td>
-    <td><input class="form-input" id="ie-desc" value="${escHtml(tx.description || '')}" placeholder="Description" style="width:200px" /></td>
-    <td>
-      ${needsCategory
-        ? `<select class="form-select" id="ie-cat" style="width:150px">${catOpts}</select>`
-        : '<span class="text-muted">—</span>'}
-    </td>
-    <td>
-      <select class="form-select" id="ie-type" style="width:130px">
-        ${Object.entries(TX_TYPE_LABELS).map(([k,v]) => `<option value="${k}"${tx.type===k?' selected':''}>${v}</option>`).join('')}
-      </select>
-    </td>
-    <td>
-      <select class="form-select" id="ie-acc" style="width:140px">${accOpts}</select>
-      ${hasTwoAccounts ? `<div style="margin-top:.25rem"><select class="form-select" id="ie-to-acc" style="width:140px">${toAccOpts}</select></div>` : ''}
-    </td>
-    <td></td>
-    <td class="amount-col"><input class="form-input text-mono" type="number" id="ie-amt" value="${tx.amount}" step="0.01" style="width:100px;text-align:right" /></td>
-    <td>
-      <select class="form-select" id="ie-status" style="width:110px">
-        <option value="confirmed"${tx.status==='confirmed'?' selected':''}>Confirmed</option>
-        <option value="pending"${tx.status==='pending'?' selected':''}>Pending</option>
-      </select>
+    <td colspan="${cols.length}" style="padding:.5rem">
+      <div style="display:flex;flex-wrap:wrap;gap:.4rem;align-items:flex-start">
+        <input class="form-input" type="date" id="ie-date" value="${tx.date}" style="width:140px" />
+        <input class="form-input" id="ie-desc" value="${escHtml(tx.description || '')}" placeholder="Description" style="width:180px" />
+        ${needsCategory ? `<select class="form-select" id="ie-cat" style="width:160px">${catOpts}</select>` : ''}
+        <select class="form-select" id="ie-type" style="width:130px">
+          ${Object.entries(TX_TYPE_LABELS).map(([k,v]) => `<option value="${k}"${tx.type===k?' selected':''}>${v}</option>`).join('')}
+        </select>
+        <select class="form-select" id="ie-acc" style="width:140px">${accOpts}</select>
+        ${hasTwoAccounts ? `<select class="form-select" id="ie-to-acc" style="width:140px">${toAccOpts}</select>` : ''}
+        <input class="form-input text-mono" type="number" id="ie-amt" value="${tx.amount}" step="0.01" style="width:100px;text-align:right" />
+        <select class="form-select" id="ie-status" style="width:110px">
+          <option value="confirmed"${tx.status==='confirmed'?' selected':''}>Confirmed</option>
+          <option value="pending"${tx.status==='pending'?' selected':''}>Pending</option>
+        </select>
+      </div>
     </td>
     <td>
       <div class="flex gap-1">
@@ -343,6 +480,35 @@ function expandInlineEdit(tx, state, cur) {
     editingId = null;
     renderTable(state);
     App.toast('Transaction updated', 'success');
+  });
+}
+
+// ── COLUMN TOGGLE MODAL ───────────────────────────────────────
+function openColumnsModal(state) {
+  const current = getVisibleCols(state);
+  const html = `
+    <div style="display:flex;flex-direction:column;gap:.4rem">
+      ${ALL_COLUMNS.filter(c => c.id !== 'running_balance' || filters.account).map(c => `
+        <label style="display:flex;align-items:center;gap:.5rem;cursor:pointer">
+          <input type="checkbox" data-col="${c.id}" ${current.includes(c.id) ? 'checked' : ''} />
+          ${escHtml(c.label)}
+        </label>`).join('')}
+      <div class="btn-row" style="margin-top:.5rem">
+        <button class="btn btn-ghost" onclick="App.closeModal()">Cancel</button>
+        <button class="btn btn-primary" id="cols-save">Apply</button>
+      </div>
+    </div>`;
+  App.openModal('Visible columns', html);
+  document.getElementById('cols-save')?.addEventListener('click', async () => {
+    const checked = [...document.querySelectorAll('[data-col]:checked')].map(el => el.dataset.col);
+    if (!checked.length) { App.toast('Select at least one column', 'error'); return; }
+    const newPrefs = { ...state.prefs, columns: checked };
+    const { error } = await App.supabase.from('profiles').update({ preferences: newPrefs }).eq('id', App.state.user.id);
+    if (!error) {
+      state.prefs.columns = checked;
+      App.closeModal();
+      render(state);
+    }
   });
 }
 

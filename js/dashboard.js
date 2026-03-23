@@ -26,7 +26,11 @@ export function render(state) {
 
   const cardOrder = prefs.dash?.cardOrder?.length ? prefs.dash.cardOrder : DEFAULT_CARD_ORDER;
   const cardVisibility = prefs.dash?.cards || {};
-  const visibleCards = cardOrder.filter(id => cardVisibility[id] !== false);
+  const visibleCards = cardOrder.filter(id => {
+    if (cardVisibility[id] === false) return false;
+    if (id === 'runway' && App.cycleMode() === 'month') return false;
+    return true;
+  });
   const sections = prefs.dash?.sections || { breakdown: true, cashflow: true, recent: true };
 
   el.innerHTML = `
@@ -50,6 +54,7 @@ export function render(state) {
           <button class="toggle-group-btn breakdown-tab active" data-view="nature">Nature</button>
           <button class="toggle-group-btn breakdown-tab" data-view="group">Group</button>
           <button class="toggle-group-btn breakdown-tab" data-view="sub">Subcategory</button>
+          <button class="toggle-group-btn breakdown-tab" data-view="all">All</button>
         </div>
       </div>
       <div class="card" style="padding:0"><div id="breakdown-rows"></div></div>
@@ -152,10 +157,16 @@ const CARD_META = {
   runway:        { label: 'Salary Runway' },
 };
 
+function gridCols(n) {
+  if (n <= 4) return n;
+  const map = { 5:3, 6:3, 7:4, 8:4, 9:3, 10:5, 11:4, 12:4 };
+  return map[n] || 4;
+}
+
 function renderStatGrid(visibleCards, stats, cur) {
   if (!visibleCards.length) return '';
   const n = visibleCards.length;
-  const cols = n <= 4 ? n : 4;
+  const cols = gridCols(n);
   const mode = App.cycleMode();
 
   const cards = visibleCards.map(id => {
@@ -326,6 +337,15 @@ function renderBreakdownRows(state, period, cur, view) {
     }
     rows = Object.entries(map).sort((a,b) => b[1] - a[1]);
 
+  } else if (view === 'all') {
+    // Every individual transaction
+    rows = spendTx
+      .sort((a, b) => b.amount - a.amount)
+      .map(tx => {
+        const cat = categories.find(c => c.id === tx.category_id);
+        const name = `${tx.description || ''}${cat ? ' · ' + (cat.icon || '') + ' ' + cat.name : ''}`.trim();
+        return [name || '—', Number(tx.amount)];
+      });
   } else {
     const map = {};
     for (const tx of spendTx) {

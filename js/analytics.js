@@ -8,7 +8,7 @@ import {
   effectiveType, calcAccountBalance, getPeriods, isLiquid,
 } from './utils.js';
 
-let cfChart = null, nwChart = null, personChart = null;
+let cfChart = null, nwChart = null, personChart = null, totChart = null, budPerfChart = null;
 
 // ── MAIN RENDER ───────────────────────────────────────────────
 export function render(state) {
@@ -82,6 +82,17 @@ export function render(state) {
       </div>
     </div>` : ''}
 
+    <!-- Totals over time -->
+    <div class="section">
+      <div class="section-header"><div class="section-title">Totals Over Time</div></div>
+      <div class="card" style="position:relative;height:260px">
+        <canvas id="analytics-tot-canvas"></canvas>
+      </div>
+    </div>
+
+    <!-- Budget performance -->
+    ${state.budgets.length ? renderBudgetPerformance(state, periods, cur) : ''}
+
     <!-- Spending breakdown table -->
     ${renderBreakdownTable(allTx, periods, state.categories, cur)}
   `;
@@ -102,6 +113,8 @@ export function render(state) {
     drawCashflowChart(allTx, periods, cur);
     drawNetWorthChart(state, periods, cur);
     if (state.profiles.length > 1) drawPersonChart(allTx, periods, state.profiles, cur);
+    drawTotalsChart(allTx, periods, cur);
+    if (state.budgets.length) drawBudgetPerfChart(state, periods, cur);
   }, 50);
 }
 
@@ -274,6 +287,106 @@ function renderBreakdownTable(allTx, periods, categories, cur) {
       </div>
     </div>
   </div>`;
+}
+
+// ── TOTALS OVER TIME ──────────────────────────────────────────
+function drawTotalsChart(allTx, periods, cur) {
+  const canvas = document.getElementById('analytics-tot-canvas');
+  if (!canvas || !window.Chart) return;
+  if (totChart) { totChart.destroy(); totChart = null; }
+
+  const labels = periods.map(p => p.label);
+  const metrics = [
+    { label: 'Income',        type: 'income',       color: '#22c55e' },
+    { label: 'Spending',      type: 'spend',         color: '#ef4444' },
+    { label: 'Saved',         type: 'savings',       color: '#3b82f6' },
+    { label: 'Invested',      type: 'investment',    color: '#a855f7' },
+    { label: 'Withdrawn',     type: 'withdrawal',    color: '#f59e0b' },
+    { label: 'Debt Payments', type: 'debt_payment',  color: '#06b6d4' },
+  ];
+
+  const datasets = metrics.map(m => ({
+    label: m.label,
+    data: periods.map(p =>
+      allTx.filter(tx => isEffective(tx) && tx.type === m.type &&
+        parseISO(tx.date) >= p.start && parseISO(tx.date) <= p.end
+      ).reduce((s, tx) => s + Number(tx.amount), 0)
+    ),
+    borderColor: m.color,
+    backgroundColor: 'transparent',
+    tension: 0.2,
+    pointRadius: 3,
+  }));
+
+  totChart = new Chart(canvas, {
+    type: 'line',
+    data: { labels, datasets },
+    options: chartOptions(cur),
+  });
+}
+
+// ── BUDGET PERFORMANCE ────────────────────────────────────────
+function renderBudgetPerformance(state, periods, cur) {
+  return `<div class="section">
+    <div class="section-header"><div class="section-title">Budget Performance</div></div>
+    <div class="card" style="position:relative;height:260px">
+      <canvas id="analytics-budperf-canvas"></canvas>
+    </div>
+  </div>`;
+}
+
+function drawBudgetPerfChart(state, periods, cur) {
+  const canvas = document.getElementById('analytics-budperf-canvas');
+  if (!canvas || !window.Chart) return;
+  if (budPerfChart) { budPerfChart.destroy(); budPerfChart = null; }
+
+  const { budgets, categories, transactions } = state;
+  const labels = periods.map(p => p.label);
+  const palette = ['#22c55e','#3b82f6','#f59e0b','#ef4444','#a855f7','#06b6d4'];
+
+  const datasets = [];
+  budgets.forEach((b, i) => {
+    const cat = categories.find(c => c.id === b.category_id);
+    const color = palette[i % palette.length];
+    const name = cat ? (cat.icon || '') + ' ' + cat.name : 'Budget';
+    const actualData = periods.map(p =>
+      transactions.filter(tx =>
+        isEffective(tx) && tx.type === 'spend' && tx.category_id === b.category_id &&
+        parseISO(tx.date) >= p.start && parseISO(tx.date) <= p.end
+      ).reduce((s, tx) => s + Number(tx.amount), 0)
+    );
+    const limitPerPeriod = Number(b.amount);
+
+    datasets.push({
+      label: name + ' (actual)',
+      data: actualData,
+      backgroundColor: color + 'aa',
+      stack: 'actual_' + i,
+      type: 'bar',
+    });
+    datasets.push({
+      label: name + ' (limit)',
+      data: labels.map(() => limitPerPeriod),
+      borderColor: color,
+      backgroundColor: 'transparent',
+      borderDash: [4, 3],
+      type: 'line',
+      tension: 0,
+      pointRadius: 0,
+    });
+  });
+
+  budPerfChart = new Chart(canvas, {
+    type: 'bar',
+    data: { labels, datasets },
+    options: {
+      ...chartOptions(cur),
+      plugins: {
+        ...chartOptions(cur).plugins,
+        legend: { position: 'bottom', labels: { boxWidth: 12, padding: 8, font: { size: 11 } } },
+      },
+    },
+  });
 }
 
 // ── CHART OPTIONS ─────────────────────────────────────────────
