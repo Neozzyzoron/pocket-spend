@@ -304,8 +304,11 @@ function wireTheme(state) {
 
   async function persistTheme(updated) {
     const { error } = await App.supabase.from('household_settings')
-      .update({ theme: updated }).eq('household_id', App.state.household.id);
-    if (!error && state.settings) state.settings.theme = updated;
+      .upsert({ household_id: App.state.household.id, theme: updated }, { onConflict: 'household_id' });
+    if (!error) {
+      if (!state.settings) state.settings = { theme: {}, account_order: [] };
+      state.settings.theme = updated;
+    }
     return error;
   }
 
@@ -333,6 +336,7 @@ function wireTheme(state) {
       const { applyTheme } = await import('./utils.js');
       applyTheme(updated);
       App.toast('Theme applied', 'success');
+      render(state); // re-render so swatches reflect new saved state
     } else {
       App.toast('Error: ' + error.message, 'error');
     }

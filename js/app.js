@@ -666,16 +666,29 @@ async function init() {
 
   // Auth state listener — handles all session events
   supabase.auth.onAuthStateChange(async (event, session) => {
-    console.log('[auth] event:', event, 'user:', session?.user?.email);
-    clearTimeout(authDeadline);
+    console.log('[auth] event:', event, 'user:', session?.user?.email, 'expires_at:', session?.expires_at);
 
-    if (event === 'INITIAL_SESSION' || event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED') {
-      if (session?.user) {
-        if (!isSigningUp) await boot(session.user);
-      } else if (event === 'INITIAL_SESSION') {
+    if (event === 'INITIAL_SESSION') {
+      if (!session?.user) {
+        clearTimeout(authDeadline);
         showAuthScreen();
+        return;
       }
+      // Only boot immediately if the access token is still valid.
+      // If expired, Supabase will fire TOKEN_REFRESHED shortly — keep authDeadline running as safety net.
+      const expiresAt = session.expires_at ? session.expires_at * 1000 : Date.now() + 3600000;
+      if (expiresAt > Date.now() + 5000) {
+        clearTimeout(authDeadline);
+        if (!isSigningUp) await boot(session.user);
+      }
+      // else: expired token — wait for TOKEN_REFRESHED; authDeadline will fire after 12s as fallback
+
+    } else if (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED') {
+      clearTimeout(authDeadline);
+      if (session?.user && !isSigningUp) await boot(session.user);
+
     } else if (event === 'SIGNED_OUT') {
+      clearTimeout(authDeadline);
       if (!bootInProgress) showAuthScreen();
     }
   });
