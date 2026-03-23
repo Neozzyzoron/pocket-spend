@@ -572,8 +572,27 @@ export function openTxModal(state, tx = null) {
   const cur = App.currency();
   const defaultType = tx?.type || 'spend';
 
+  // Build quick-pick chips from most frequent past transactions
+  let quickPicks = [];
+  if (!isEdit) {
+    const freq = {};
+    for (const t of state.transactions) {
+      if (!t.description) continue;
+      const key = t.description;
+      if (!freq[key]) freq[key] = { tx: t, count: 0 };
+      freq[key].count++;
+    }
+    quickPicks = Object.values(freq).sort((a, b) => b.count - a.count).slice(0, 6);
+  }
+
   const html = `
     <form id="tx-form" autocomplete="off">
+      ${quickPicks.length ? `<div style="margin-bottom:1rem">
+        <div class="text-sm text-muted" style="margin-bottom:.4rem">Quick add</div>
+        <div style="display:flex;flex-wrap:wrap;gap:.4rem">
+          ${quickPicks.map(({tx: t}) => `<button type="button" class="chip quick-pick-btn" data-id="${t.id}" style="cursor:pointer">${escHtml(t.description)}</button>`).join('')}
+        </div>
+      </div>` : ''}
       <div class="form-row">
         <div class="form-group" style="flex:1">
           <label class="form-label">Category</label>
@@ -638,6 +657,20 @@ export function openTxModal(state, tx = null) {
 
   // Render account fields based on current type
   renderTxAccountFields(state, tx);
+
+  // Quick-pick chips pre-fill the form
+  document.querySelectorAll('.quick-pick-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const t = state.transactions.find(x => x.id === btn.dataset.id);
+      if (!t) return;
+      document.getElementById('tf-desc').value = t.description || '';
+      document.getElementById('tf-type').value = t.type || 'spend';
+      document.getElementById('tf-cat').value = t.category_id || '';
+      document.getElementById('tf-amount').value = t.amount || '';
+      if (t.user_id) document.getElementById('tf-person').value = t.user_id;
+      renderTxAccountFields(state, t);
+    });
+  });
 
   // Auto-set type from category
   document.getElementById('tf-cat')?.addEventListener('change', e => {
