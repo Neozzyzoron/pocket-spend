@@ -5,7 +5,8 @@
 
 import {
   fmtCurrency, escHtml, effectiveType, calcAccountBalance,
-  buildCategoryTree, isEffective,
+  buildCategoryTree, isEffective, colorSwatchesHtml, wireColorSwatches,
+  wireDragReorder,
 } from './utils.js';
 
 // ── ICON PICKER DATA ──────────────────────────────────────────
@@ -597,13 +598,15 @@ function renderAccountsSection(state) {
       <div class="table-wrap">
         <table class="table">
           <thead><tr>
+            <th style="width:24px"></th>
             <th>Name</th><th>Type</th><th class="amount-col">Balance</th><th>Status</th><th style="width:120px"></th>
           </tr></thead>
-          <tbody>
+          <tbody id="settings-acc-tbody">
             ${accounts.map(a => {
               const bal = calcAccountBalance(a, transactions);
               const et = effectiveType(a);
-              return `<tr class="${a.is_archived ? 'text-muted' : ''}">
+              return `<tr data-id="${a.id}" class="${a.is_archived ? 'text-muted' : ''}">
+                <td class="drag-handle" style="cursor:grab;color:var(--text-muted);font-size:1rem;user-select:none">⠿</td>
                 <td><span style="display:inline-block;width:10px;height:10px;border-radius:50%;background:${a.color || 'var(--accent)'};margin-right:.5rem"></span>${escHtml(a.name)}</td>
                 <td class="text-sm">${et}${a.type === 'custom' ? ` (${escHtml(a.custom_type || '')})` : ''}</td>
                 <td class="amount-col text-mono ${bal < 0 ? 'negative' : ''}">${fmtCurrency(bal, cur)}</td>
@@ -625,6 +628,20 @@ function renderAccountsSection(state) {
 }
 
 function wireAccountsSection(state) {
+  wireDragReorder(
+    document.getElementById('settings-acc-tbody'),
+    'tr[data-id]',
+    async (ids) => {
+      const { error } = await App.supabase.from('household_settings')
+        .update({ account_order: ids }).eq('household_id', App.state.household.id);
+      if (!error) {
+        state.accountOrder = ids;
+        state.settings.account_order = ids;
+        App.toast('Order saved', 'success');
+      }
+    }
+  );
+
   document.getElementById('settings-add-acc-btn')?.addEventListener('click', () => {
     App.navigate('accounts');
     // Small hack: trigger add modal on accounts page after navigation
@@ -682,11 +699,13 @@ function renderCategoriesSection(state) {
     </div>
     <div class="card" style="padding:0">
       ${groups.length === 0 ? `<div class="empty-state">No categories yet</div>` :
+        `<div id="cat-groups-list">` +
         groups.map(g => {
           const subs = subsByParent[g.id] || [];
-          return `<div style="border-bottom:1px solid var(--border)">
+          return `<div class="cat-group-row" data-id="${g.id}" style="border-bottom:1px solid var(--border)">
             <div class="flex items-center justify-between" style="padding:.65rem 1rem">
               <div class="flex items-center gap-2">
+                <span class="drag-handle" style="cursor:grab;color:var(--text-muted);font-size:1rem;user-select:none">⠿</span>
                 <span style="font-size:1.1rem">${escHtml(g.icon || '')}</span>
                 <div>
                   <div class="fw-500">${escHtml(g.name)}</div>
@@ -699,26 +718,55 @@ function renderCategoriesSection(state) {
                 <button class="btn btn-ghost btn-sm btn-danger cat-delete-btn" data-id="${g.id}">✕</button>
               </div>
             </div>
-            ${subs.map(s => `<div class="flex items-center justify-between" style="padding:.5rem 1rem .5rem 2.5rem;border-top:1px solid var(--border)40">
-              <div class="flex items-center gap-2">
-                <span>${escHtml(s.icon || '')}</span>
-                <span class="text-sm">${escHtml(s.name)}</span>
-                <span class="badge badge-neutral text-xs">${s.nature || ''}</span>
-              </div>
-              <div class="flex gap-1">
-                <button class="btn btn-ghost btn-sm cat-edit-btn" data-id="${s.id}">Edit</button>
-                <button class="btn btn-ghost btn-sm btn-danger cat-delete-btn" data-id="${s.id}">✕</button>
-              </div>
-            </div>`).join('')}
+            <div class="cat-subs-list" data-parent="${g.id}">
+              ${subs.map(s => `<div class="cat-sub-row" data-id="${s.id}" style="padding:.5rem 1rem .5rem 2.5rem;border-top:1px solid var(--border)40">
+                <div class="flex items-center justify-between">
+                  <div class="flex items-center gap-2">
+                    <span class="drag-handle" style="cursor:grab;color:var(--text-muted);font-size:1rem;user-select:none">⠿</span>
+                    <span>${escHtml(s.icon || '')}</span>
+                    <span class="text-sm">${escHtml(s.name)}</span>
+                    <span class="badge badge-neutral text-xs">${s.nature || ''}</span>
+                  </div>
+                  <div class="flex gap-1">
+                    <button class="btn btn-ghost btn-sm cat-edit-btn" data-id="${s.id}">Edit</button>
+                    <button class="btn btn-ghost btn-sm btn-danger cat-delete-btn" data-id="${s.id}">✕</button>
+                  </div>
+                </div>
+              </div>`).join('')}
+            </div>
           </div>`;
-        }).join('')
+        }).join('') + `</div>`
       }
     </div>
   </div>`;
 }
 
+async function saveCatOrder(ids, state) {
+  await Promise.all(ids.map((id, i) =>
+    App.supabase.from('categories')
+      .update({ sort_order: i * 10 }).eq('id', id).eq('household_id', App.state.household.id)
+  ));
+  ids.forEach((id, i) => {
+    const c = state.categories.find(c => c.id === id);
+    if (c) c.sort_order = i * 10;
+  });
+  App.toast('Order saved', 'success');
+}
+
 function wireCategoriesSection(state) {
   const el = document.getElementById('page-settings');
+
+  // Drag reorder — groups
+  wireDragReorder(
+    document.getElementById('cat-groups-list'),
+    '.cat-group-row[data-id]',
+    ids => saveCatOrder(ids, state)
+  );
+
+  // Drag reorder — subs within each group
+  document.querySelectorAll('.cat-subs-list[data-parent]').forEach(list => {
+    wireDragReorder(list, '.cat-sub-row[data-id]', ids => saveCatOrder(ids, state));
+  });
 
   document.getElementById('settings-add-group-btn')?.addEventListener('click', () => openCategoryModal(state));
 
@@ -787,6 +835,7 @@ function openCategoryModal(state, cat = null, parentGroup = null) {
       </div>
     </div>
     ${buildIconPickerHtml()}
+    ${colorSwatchesHtml('cf-color')}
     <div class="form-row">
       <div class="form-group" style="flex:1">
         <label class="form-label">Nature</label>
@@ -819,6 +868,7 @@ function openCategoryModal(state, cat = null, parentGroup = null) {
 
   App.openModal(isEdit ? 'Edit Category' : (isSub ? 'Add Subcategory' : 'Add Category Group'), html);
   wireIconPicker();
+  wireColorSwatches();
 
   document.getElementById('cat-form')?.addEventListener('submit', async e => {
     e.preventDefault();

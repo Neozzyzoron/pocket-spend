@@ -6,6 +6,7 @@
 import {
   fmtCurrency, fmtPct, escHtml, effectiveType, isLiquid,
   calcAccountBalance, buildAccountOptions, parseISO, isEffective,
+  colorSwatchesHtml, wireColorSwatches,
 } from './utils.js';
 
 // ── MAIN RENDER ───────────────────────────────────────────────
@@ -195,6 +196,7 @@ function openAccountModal(state, acc = null) {
       </div>
       <div class="form-group" style="flex:1">
         <label class="form-label">Color</label>
+        ${colorSwatchesHtml('af-color')}
         <input class="form-input" type="color" id="af-color" value="${acc?.color || '#22c55e'}" style="height:38px;padding:2px 4px" />
       </div>
     </div>
@@ -245,6 +247,7 @@ function openAccountModal(state, acc = null) {
   </form>`;
 
   App.openModal(isEdit ? 'Edit Account' : 'Add Account', html);
+  wireColorSwatches();
 
   document.getElementById('af-type')?.addEventListener('change', e => {
     document.getElementById('af-custom-fields').classList.toggle('hidden', e.target.value !== 'custom');

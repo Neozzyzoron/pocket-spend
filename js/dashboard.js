@@ -11,6 +11,11 @@ import {
 
 let cashflowChart = null;
 
+const DEFAULT_CARD_ORDER = [
+  'income','spending','saved','invested','withdrawn','debt_payments',
+  'net_balance','net_worth','total_debt','due_eop','expected_eop','runway',
+];
+
 // ── MAIN RENDER ───────────────────────────────────────────────
 export function render(state) {
   const el = document.getElementById('page-dashboard');
@@ -19,7 +24,7 @@ export function render(state) {
   const prefs = state.prefs;
   const stats = computeStats(state, period);
 
-  const cardOrder = prefs.dash?.cardOrder || [];
+  const cardOrder = prefs.dash?.cardOrder?.length ? prefs.dash.cardOrder : DEFAULT_CARD_ORDER;
   const cardVisibility = prefs.dash?.cards || {};
   const visibleCards = cardOrder.filter(id => cardVisibility[id] !== false);
   const sections = prefs.dash?.sections || { breakdown: true, cashflow: true, recent: true };
@@ -31,6 +36,7 @@ export function render(state) {
         <div class="page-subtitle">${escHtml(period.label)}</div>
       </div>
       <div class="page-actions">
+        <button class="btn btn-ghost btn-sm" id="dash-customize-btn">⚙ Customize</button>
         <button class="btn btn-primary" id="dash-add-tx-btn">+ Add transaction</button>
       </div>
     </div>
@@ -63,6 +69,9 @@ export function render(state) {
   `;
 
   document.getElementById('dash-add-tx-btn')?.addEventListener('click', () => App.navigate('transactions'));
+  document.getElementById('dash-customize-btn')?.addEventListener('click', () =>
+    openDashCustomize(state, cardOrder, cardVisibility, sections)
+  );
 
   if (sections.breakdown) {
     renderBreakdownRows(state, period, cur, 'nature');
@@ -189,6 +198,91 @@ function renderStatGrid(visibleCards, stats, cur) {
   });
 
   return `<div class="stat-grid" style="grid-template-columns:repeat(${cols},1fr)">${cards.join('')}</div>`;
+}
+
+// ── DASHBOARD CUSTOMIZE ───────────────────────────────────────
+function openDashCustomize(state, cardOrder, cardVisibility, sections) {
+  const html = `
+    <div style="display:flex;flex-direction:column;gap:1rem">
+      <div>
+        <div class="form-label" style="margin-bottom:.5rem">Sections</div>
+        <div style="display:flex;flex-direction:column;gap:.4rem">
+          ${[['breakdown','Spending Breakdown'],['cashflow','Cash Flow Chart'],['recent','Recent Transactions']].map(([k,l]) =>
+            `<label class="form-check" style="display:flex;align-items:center;gap:.5rem;cursor:pointer">
+              <input type="checkbox" class="dash-section-toggle" data-section="${k}" ${sections[k] !== false ? 'checked' : ''} />
+              ${l}
+            </label>`
+          ).join('')}
+        </div>
+      </div>
+      <div>
+        <div class="form-label" style="margin-bottom:.5rem">Stat tiles — drag to reorder, toggle to show/hide</div>
+        <div id="dash-tile-list" style="display:flex;flex-direction:column;gap:3px">
+          ${cardOrder.map(id => {
+            const label = CARD_META[id]?.label || id;
+            const on = cardVisibility[id] !== false;
+            return `<div class="dash-tile-row" data-id="${id}"
+              style="display:flex;align-items:center;gap:.5rem;padding:.4rem .6rem;
+                     border:1px solid var(--border);border-radius:var(--radius);
+                     background:var(--surface);cursor:default">
+              <span style="cursor:grab;color:var(--text-muted);user-select:none">⠿</span>
+              <label style="flex:1;display:flex;align-items:center;gap:.5rem;cursor:pointer;margin:0">
+                <input type="checkbox" data-id="${id}" ${on ? 'checked' : ''} style="margin:0" />
+                ${escHtml(label)}
+              </label>
+            </div>`;
+          }).join('')}
+        </div>
+      </div>
+      <div class="btn-row">
+        <button type="button" class="btn btn-ghost" onclick="App.closeModal()">Cancel</button>
+        <button type="button" class="btn btn-primary" id="dash-customize-save">Save</button>
+      </div>
+    </div>`;
+
+  App.openModal('Customize Dashboard', html);
+
+  // Wire tile drag reorder
+  const tileList = document.getElementById('dash-tile-list');
+  if (tileList) {
+    let src = null;
+    tileList.querySelectorAll('.dash-tile-row').forEach(row => {
+      row.setAttribute('draggable', 'true');
+      row.addEventListener('dragstart', e => {
+        src = row; e.dataTransfer.effectAllowed = 'move';
+        setTimeout(() => { if (src) src.style.opacity = '0.4'; }, 0);
+      });
+      row.addEventListener('dragend', () => { if (src) src.style.opacity = '1'; src = null; });
+      row.addEventListener('dragover', e => {
+        if (!src || src === row) return;
+        e.preventDefault();
+        const mid = row.getBoundingClientRect().top + row.getBoundingClientRect().height / 2;
+        if (e.clientY < mid) tileList.insertBefore(src, row);
+        else row.after(src);
+      });
+    });
+  }
+
+  document.getElementById('dash-customize-save')?.addEventListener('click', async () => {
+    const newOrder = [...tileList.querySelectorAll('.dash-tile-row')].map(r => r.dataset.id);
+    const cards = {};
+    tileList.querySelectorAll('input[type="checkbox"]').forEach(cb => { cards[cb.dataset.id] = cb.checked; });
+    const newSections = {};
+    document.querySelectorAll('.dash-section-toggle').forEach(cb => { newSections[cb.dataset.section] = cb.checked; });
+
+    const dash = { cardOrder: newOrder, cards, sections: newSections };
+    const newPrefs = { ...state.prefs, dash };
+    const { error } = await App.supabase.from('profiles')
+      .update({ preferences: newPrefs }).eq('id', state.user.id);
+    if (!error) {
+      state.prefs.dash = dash;
+      App.closeModal();
+      App.refreshCurrentPage();
+      App.toast('Dashboard saved', 'success');
+    } else {
+      App.toast('Error: ' + error.message, 'error');
+    }
+  });
 }
 
 // ── SPENDING BREAKDOWN ────────────────────────────────────────
