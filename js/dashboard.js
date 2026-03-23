@@ -159,9 +159,12 @@ const CARD_META = {
 };
 
 function gridCols(n) {
-  if (n <= 4) return n;
-  const map = { 5:3, 6:3, 7:4, 8:4, 9:3, 10:5, 11:4, 12:4 };
-  return map[n] || 4;
+  if (n <= 3) return n;
+  if (n === 4) return 2;  // 2+2 — symmetric
+  if (n <= 6)  return 3;  // 3+2 or 3+3
+  if (n <= 8)  return 4;  // 4+3 or 4+4
+  if (n === 9) return 3;  // 3+3+3
+  return 4;
 }
 
 function renderStatGrid(visibleCards, stats, cur) {
