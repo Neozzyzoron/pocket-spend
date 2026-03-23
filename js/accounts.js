@@ -9,29 +9,55 @@ import {
   colorSwatchesHtml, wireColorSwatches,
 } from './utils.js';
 
+let accGrouped = true; // toggle state: true = group by type, false = custom order
+
+function sortByOrder(accs, order) {
+  return [...accs].sort((a, b) => {
+    const ia = order.indexOf(a.id), ib = order.indexOf(b.id);
+    if (ia === -1 && ib === -1) return 0;
+    if (ia === -1) return 1;
+    if (ib === -1) return -1;
+    return ia - ib;
+  });
+}
+
 // ── MAIN RENDER ───────────────────────────────────────────────
 export function render(state) {
   const el = document.getElementById('page-accounts');
   const cur = App.currency();
   const { accounts, transactions } = state;
+  const order = state.accountOrder || [];
 
-  const active = accounts.filter(a => !a.is_archived);
-  const archived = accounts.filter(a => a.is_archived);
+  const active = sortByOrder(accounts.filter(a => !a.is_archived), order);
+  const archived = sortByOrder(accounts.filter(a => a.is_archived), order);
 
-  // Group active accounts
-  const liquid = active.filter(a => isLiquid(a));
-  const savings = active.filter(a => effectiveType(a) === 'savings');
-  const investment = active.filter(a => effectiveType(a) === 'investment');
-  const loans = active.filter(a => effectiveType(a) === 'loan');
-  const other = active.filter(a => !isLiquid(a) && !['savings','investment','loan'].includes(effectiveType(a)));
+  let mainContent;
+  if (accGrouped) {
+    // Group by type, sort within each group by accountOrder
+    const groups = [
+      { label: 'Liquid Accounts',   accs: active.filter(a => isLiquid(a)) },
+      { label: 'Savings',           accs: active.filter(a => effectiveType(a) === 'savings') },
+      { label: 'Investments',       accs: active.filter(a => effectiveType(a) === 'investment') },
+      { label: 'Loans & Debt',      accs: active.filter(a => effectiveType(a) === 'loan') },
+      { label: 'Other',             accs: active.filter(a => !isLiquid(a) && !['savings','investment','loan'].includes(effectiveType(a))) },
+    ].filter(g => g.accs.length > 0);
 
-  const groups = [
-    { label: 'Liquid Accounts', accs: liquid },
-    { label: 'Savings', accs: savings },
-    { label: 'Investments', accs: investment },
-    { label: 'Loans & Debt', accs: loans },
-    { label: 'Other', accs: other },
-  ].filter(g => g.accs.length > 0);
+    mainContent = groups.map(g => `
+      <div class="section">
+        <div class="section-header"><div class="section-title">${g.label}</div></div>
+        <div class="stat-grid" style="grid-template-columns:repeat(${Math.min(g.accs.length, 3)},1fr)">
+          ${g.accs.map(a => renderAccountCard(a, state, cur)).join('')}
+        </div>
+      </div>
+    `).join('');
+  } else {
+    mainContent = active.length ? `
+      <div class="section">
+        <div class="stat-grid" style="grid-template-columns:repeat(${Math.min(active.length, 3)},1fr)">
+          ${active.map(a => renderAccountCard(a, state, cur)).join('')}
+        </div>
+      </div>` : '';
+  }
 
   el.innerHTML = `
     <div class="page-header">
@@ -40,18 +66,15 @@ export function render(state) {
         <div class="page-subtitle">${active.length} active account${active.length !== 1 ? 's' : ''}</div>
       </div>
       <div class="page-actions">
+        <div class="toggle-group">
+          <button class="toggle-group-btn${accGrouped ? ' active' : ''}" id="acc-view-grouped">By type</button>
+          <button class="toggle-group-btn${!accGrouped ? ' active' : ''}" id="acc-view-flat">Custom order</button>
+        </div>
         <button class="btn btn-primary" id="acc-add-btn">+ Add account</button>
       </div>
     </div>
 
-    ${groups.map(g => `
-      <div class="section">
-        <div class="section-header"><div class="section-title">${g.label}</div></div>
-        <div class="stat-grid" style="grid-template-columns:repeat(${Math.min(g.accs.length, 3)},1fr)">
-          ${g.accs.map(a => renderAccountCard(a, state, cur)).join('')}
-        </div>
-      </div>
-    `).join('')}
+    ${mainContent}
 
     ${archived.length ? `
       <div class="section">
@@ -72,6 +95,8 @@ export function render(state) {
     ` : ''}
   `;
 
+  document.getElementById('acc-view-grouped')?.addEventListener('click', () => { accGrouped = true;  render(state); });
+  document.getElementById('acc-view-flat')?.addEventListener('click',    () => { accGrouped = false; render(state); });
   document.getElementById('acc-add-btn')?.addEventListener('click', () => openAccountModal(state));
 
   el.querySelectorAll('.acc-edit-btn').forEach(btn => {
