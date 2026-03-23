@@ -520,12 +520,11 @@ async function boot(user) {
   if (bootInProgress) { console.log('[boot] already in progress, skipping'); return; }
   bootInProgress = true;
 
-  // Hard timeout: if boot hangs > 10s, the Supabase client is likely stuck in a
-  // _recoverAndRefresh loop with a stale/locked localStorage token. Clear it so
-  // the next page load starts fresh instead of hanging again.
-  const bootTimeout = setTimeout(async () => {
-    console.error('[boot] timed out — clearing stale auth token from localStorage');
-    try { await supabase.auth.signOut({ scope: 'local' }); } catch (_) {}
+  // Hard timeout — if boot stalls, clear the stored token directly via localStorage
+  // (never call supabase.auth.signOut here — it acquires a Web Lock and can deadlock)
+  const bootTimeout = setTimeout(() => {
+    console.error('[boot] timed out after 10s — clearing token');
+    try { localStorage.removeItem('sb-blnxkxhwllawdzghvwyy-auth-token'); } catch (_) {}
     bootInProgress = false;
     showAuthScreen();
   }, 10000);
@@ -534,12 +533,8 @@ async function boot(user) {
     state.user = user;
     console.log('[boot] loading profile...');
 
-    // Fetch profile — 8s timeout so a paused/unreachable Supabase fails fast
-    const profileAbort = new AbortController();
-    const profileTimer = setTimeout(() => profileAbort.abort(), 8000);
     const { data: profile, error: profileError } = await supabase
-      .from('profiles').select('*').eq('id', user.id).abortSignal(profileAbort.signal).single();
-    clearTimeout(profileTimer);
+      .from('profiles').select('*').eq('id', user.id).single();
     console.log('[boot] profile result:', { profile, profileError });
 
     if (profileError || !profile || !profile.household_id) {
@@ -550,11 +545,8 @@ async function boot(user) {
       return;
     }
 
-    const householdAbort = new AbortController();
-    const householdTimer = setTimeout(() => householdAbort.abort(), 8000);
     const { data: household, error: householdError } = await supabase
-      .from('households').select('*').eq('id', profile.household_id).abortSignal(householdAbort.signal).single();
-    clearTimeout(householdTimer);
+      .from('households').select('*').eq('id', profile.household_id).single();
     console.log('[boot] household result:', { household, householdError });
 
     if (householdError || !household) {
@@ -667,44 +659,32 @@ async function init() {
     });
   });
 
-  // ── Auth state machine ────────────────────────────────────────
-  // CRITICAL: the onAuthStateChange callback MUST be synchronous (no async/await).
-  // Supabase v2 awaits all callbacks inside _notifyAllSubscribers. If our callback
-  // makes any supabase call (including getSession inside a DB query), it creates a
-  // circular wait: _initialize awaits our callback, our callback awaits getSession,
-  // getSession awaits _initialize → deadlock on every page reload.
-  //
-  // Fix: return synchronously, defer all Supabase work to the next event-loop tick
-  // via setTimeout(0) so _initialize can complete before we touch the client.
-
-  const authSafety = setTimeout(() => {
-    if (booted || bootInProgress) return;
-    console.warn('[auth] INITIAL_SESSION never fired within 8s');
-    showAuthScreen();
-  }, 8000);
-
+  // ── Auth ──────────────────────────────────────────────────────
+  // onAuthStateChange handles SIGNED_IN (login button) and SIGNED_OUT only.
+  // It must be a plain synchronous function — Supabase v2 awaits all callbacks
+  // inside _notifyAllSubscribers during _initialize. An async callback that calls
+  // any Supabase method creates a circular wait (_initialize → callback → getSession
+  // → _initialize) that deadlocks on every page load. Keep it sync, no API calls.
   supabase.auth.onAuthStateChange((event, session) => {
-    if (event === 'INITIAL_SESSION') {
-      clearTimeout(authSafety);
-      if (session?.user && !isSigningUp) {
-        setTimeout(() => boot(session.user), 0);
-      } else if (!session?.user) {
-        setTimeout(() => showAuthScreen(), 0);
-      }
-      // user + isSigningUp: signup flow calls boot() directly after DB setup
-
-    } else if (event === 'SIGNED_IN' && !booted && !isSigningUp) {
-      clearTimeout(authSafety);
-      setTimeout(() => boot(session.user), 0);
-
+    if (event === 'SIGNED_IN' && !booted && !isSigningUp) {
+      boot(session.user);  // _initialize is complete by SIGNED_IN, safe to call
     } else if (event === 'SIGNED_OUT') {
-      clearTimeout(authSafety);
       booted = false;
       if (!bootInProgress) showAuthScreen();
     }
-    // TOKEN_REFRESHED: deliberately ignored — happens every ~50 min and must
-    // not trigger a re-boot mid-session.
+    // INITIAL_SESSION: handled by getSession() below — not here.
+    // TOKEN_REFRESHED: ignored, Supabase refreshes transparently.
   });
+
+  // getSession() waits for _initialize to complete, then returns the stored
+  // session. Because our listener above is synchronous and makes no API calls,
+  // _initialize completes without deadlock and this resolves immediately.
+  const { data: { session } } = await supabase.auth.getSession();
+  if (session?.user) {
+    boot(session.user);
+  } else {
+    showAuthScreen();
+  }
 }
 
 function switchHouseholdChoice(choice) {
