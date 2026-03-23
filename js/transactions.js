@@ -611,13 +611,13 @@ export function openTxModal(state, tx = null) {
             ${profiles.map(p => `<option value="${p.id}"${(tx?.user_id || App.state.user.id) === p.id ? ' selected' : ''}>${escHtml(p.display_name)}</option>`).join('')}
           </select>
         </div>
-        <div class="form-group" style="flex:1">
+        ${isEdit ? `<div class="form-group" style="flex:1">
           <label class="form-label">Status</label>
           <select class="form-select" id="tf-status">
             <option value="confirmed"${tx?.status !== 'pending' ? ' selected' : ''}>Confirmed</option>
             <option value="pending"${tx?.status === 'pending' ? ' selected' : ''}>Pending</option>
           </select>
-        </div>
+        </div>` : ''}
       </div>
       <div class="form-group">
         <label class="form-label">Notes</label>
@@ -653,14 +653,6 @@ export function openTxModal(state, tx = null) {
   });
 
   document.getElementById('tf-type')?.addEventListener('change', () => renderTxAccountFields(state, tx));
-
-  // Date → auto pending
-  document.getElementById('tf-date')?.addEventListener('change', e => {
-    const d = e.target.value;
-    if (d > todayISO()) {
-      document.getElementById('tf-status').value = 'pending';
-    }
-  });
 
   document.getElementById('tx-form')?.addEventListener('submit', async e => {
     e.preventDefault();
@@ -730,7 +722,9 @@ async function saveTx(state, existing = null) {
   const account_id  = document.getElementById('tf-acc')?.value || null;
   const to_account_id = document.getElementById('tf-to-acc')?.value || null;
   const user_id     = document.getElementById('tf-person')?.value || App.state.user.id;
-  const status      = document.getElementById('tf-status')?.value || 'confirmed';
+  const status      = existing
+    ? (document.getElementById('tf-status')?.value || 'confirmed')
+    : (date > todayISO() ? 'pending' : 'confirmed');
   const notes       = document.getElementById('tf-notes')?.value.trim() || null;
 
   // Validation
