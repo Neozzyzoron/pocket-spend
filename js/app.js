@@ -238,7 +238,7 @@ async function loadAllData() {
     { data: allProfiles },
     { data: settings },
   ] = await Promise.all([
-    supabase.from('accounts').select('*').eq('household_id', hid).order('created_at'),
+    supabase.from('accounts').select('*').eq('household_id', hid).order('name'),
     supabase.from('categories').select('*').eq('household_id', hid).order('sort_order'),
     supabase.from('transactions').select('*').eq('household_id', hid).order('date', { ascending: false }).order('created_at', { ascending: false }),
     supabase.from('recurring_templates').select('*').eq('household_id', hid).order('created_at'),
