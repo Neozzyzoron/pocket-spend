@@ -8,6 +8,7 @@ import {
   isEffective, effectiveType, isLiquid, calcAccountBalance,
   buildCategoryTree, escHtml, parseISO, todayDate,
 } from './utils.js';
+import { openTxModal } from './transactions.js';
 
 let cashflowChart = null;
 
@@ -73,7 +74,7 @@ export function render(state) {
     ${sections.recent ? renderRecentSection(state, cur) : ''}
   `;
 
-  document.getElementById('dash-add-tx-btn')?.addEventListener('click', () => App.navigate('transactions'));
+  document.getElementById('dash-add-tx-btn')?.addEventListener('click', () => openTxModal(state));
   document.getElementById('dash-customize-btn')?.addEventListener('click', () =>
     openDashCustomize(state, cardOrder, cardVisibility, sections)
   );

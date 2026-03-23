@@ -566,7 +566,7 @@ function exportCSV(state) {
 }
 
 // ── ADD / EDIT MODAL ──────────────────────────────────────────
-function openTxModal(state, tx = null) {
+export function openTxModal(state, tx = null) {
   const isEdit = !!tx;
   const { categories, accounts, profiles } = state;
   const cur = App.currency();
