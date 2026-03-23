@@ -8,6 +8,152 @@ import {
   buildCategoryTree, isEffective,
 } from './utils.js';
 
+// ── ICON PICKER DATA ──────────────────────────────────────────
+const CURATED_ICONS = {
+  'Food & Drink':  ['🍔','🍕','🍜','🥗','🍺','☕','🍰','🥩','🍱','🍣','🍦','🥤','🍷','🍳','🥐','🧁','🫕','🥘'],
+  'Transport':     ['🚗','🚇','✈️','🚕','🚲','⛽','🚌','🛵','🚂','🛻','🏍️','🚁','🅿️','🛳️'],
+  'Shopping':      ['👗','👟','📱','💻','🛍️','💄','👔','📷','🕶️','👜','🧴','🪥','🧣','🛒'],
+  'Health':        ['💊','🏥','🦷','👓','🏃','🩺','💉','🏋️','🧘','🚿','💆','🩹'],
+  'Home & Garden': ['🏠','🔧','💡','🛋️','🧹','🌿','🔑','🪴','🪑','🛏️','🪟','🔨'],
+  'Entertainment': ['🎬','🎵','🎮','📺','🎯','🎭','🎨','🎸','🎧','🎲','🎪','🎻'],
+  'Finance':       ['💰','💳','🏦','📈','💹','🏧','💵','📊','🪙','💸','📉','💎'],
+  'Education':     ['📚','🎓','✏️','🖊️','📝','🔬','📐','🖋️','📖','🗒️'],
+  'Travel':        ['🏖️','⛷️','🏕️','🗺️','🏔️','🌊','🗽','🌍','🌴','⛰️'],
+  'Utilities':     ['💧','⚡','📞','🌐','🔌','📡','♻️','🗑️'],
+  'Kids & Family': ['🧸','🎠','🎒','🎡','🧩','🪀','🎈','🍼','🧒','🎨'],
+  'Pets':          ['🐕','🐈','🦮','🐾','🐟','🐇','🐹','🐠'],
+};
+
+const EMOJI_CATS = {
+  'Smileys':  ['😀','😃','😄','😁','😅','🤣','😂','🙂','😊','😇','🥰','😍','🤩','😘','😋','😛','😜','🤪','😎','🥳'],
+  'People':   ['👋','✋','🤝','💪','👍','👎','✌️','🤞','🤟','🤙','🙌','👏','🙏','👐','🤲','👑','🧑','👨','👩','🧒'],
+  'Animals':  ['🐶','🐱','🐭','🐹','🐰','🦊','🐻','🐼','🐨','🐯','🦁','🐸','🐵','🐔','🐧','🦋','🐝','🌸','🌺','🦜'],
+  'Food':     ['🍏','🍎','🍊','🍋','🍇','🍓','🫐','🍒','🍑','🥝','🍅','🥥','🥑','🌽','🌶️','🍆','🥔','🧄','🧅','🥕'],
+  'Places':   ['🏠','🏡','🏢','🏥','🏦','🏨','🏪','🏫','⛪','🕌','🗼','🗽','⛩️','🏰','🌋','⛺','🚉','🚢','⛵','🗺️'],
+  'Objects':  ['⌚','📱','💻','⌨️','🖥️','📷','📸','📺','📻','🎙️','💡','🔦','🕯️','🔨','⚔️','🛡️','🔧','🔩','⚙️','🔑'],
+  'Symbols':  ['❤️','🧡','💛','💚','💙','💜','🖤','⭐','🌟','💫','✨','🔥','🌈','☀️','🌙','⚡','❄️','🌊','🍀','🎄'],
+};
+
+function _ipGridHtml(icons) {
+  return icons.map(ic =>
+    `<button type="button" class="ip-btn" data-icon="${escHtml(ic)}"
+      style="width:2rem;height:2rem;font-size:1.2rem;border:none;background:none;cursor:pointer;
+             border-radius:4px;padding:0;line-height:1;display:flex;align-items:center;justify-content:center">${ic}</button>`
+  ).join('');
+}
+
+function _ipSectionHtml(dict) {
+  return Object.entries(dict).map(([cat, icons]) =>
+    `<div style="margin-bottom:.6rem">
+      <div style="font-size:.65rem;color:var(--text-muted);text-transform:uppercase;letter-spacing:.05em;
+                  margin-bottom:.2rem;padding:0 .15rem">${cat}</div>
+      <div style="display:flex;flex-wrap:wrap;gap:1px">${_ipGridHtml(icons)}</div>
+    </div>`
+  ).join('');
+}
+
+function buildIconPickerHtml() {
+  return `
+    <div id="cf-icon-picker" class="hidden" style="border:1px solid var(--border);border-radius:var(--radius);
+         margin-bottom:1rem;overflow:hidden">
+      <div style="border-bottom:1px solid var(--border);padding:.4rem .5rem;display:flex;align-items:center;
+                  gap:.4rem;background:var(--bg-subtle)">
+        <button type="button" class="btn btn-sm btn-primary ip-tab" data-tab="curated" style="flex-shrink:0">🎨 Curated</button>
+        <button type="button" class="btn btn-sm btn-ghost ip-tab" data-tab="emoji" style="flex-shrink:0">😀 Emoji</button>
+        <input type="text" id="cf-icon-search" placeholder="Search…"
+               style="flex:1;padding:.25rem .5rem;border:1px solid var(--border);border-radius:var(--radius-sm);
+                      background:var(--bg-input);color:var(--text);font-size:.8rem;min-width:0" />
+        <button type="button" id="cf-icon-clear" class="btn btn-ghost btn-sm" style="flex-shrink:0"
+                title="Clear icon">✕</button>
+      </div>
+      <div id="cf-icon-grid" style="max-height:190px;overflow-y:auto;padding:.5rem">
+        <div id="ip-tab-curated">${_ipSectionHtml(CURATED_ICONS)}</div>
+        <div id="ip-tab-emoji" class="hidden">${_ipSectionHtml(EMOJI_CATS)}</div>
+        <div id="ip-search-results" class="hidden"></div>
+      </div>
+    </div>`;
+}
+
+function wireIconPicker() {
+  const toggleBtn = document.getElementById('cf-icon-btn');
+  const picker    = document.getElementById('cf-icon-picker');
+  const hidden    = document.getElementById('cf-icon');
+  const preview   = document.getElementById('cf-icon-preview');
+  const searchEl  = document.getElementById('cf-icon-search');
+  const clearBtn  = document.getElementById('cf-icon-clear');
+  if (!toggleBtn || !picker) return;
+
+  const selectIcon = (icon) => {
+    hidden.value        = icon;
+    preview.textContent = icon;
+    toggleBtn.title     = icon;
+    picker.classList.add('hidden');
+  };
+
+  const wireButtons = (root) => {
+    root.querySelectorAll('.ip-btn').forEach(b => {
+      b.addEventListener('click', () => selectIcon(b.dataset.icon));
+    });
+  };
+
+  toggleBtn.addEventListener('click', () => {
+    picker.classList.toggle('hidden');
+    if (!picker.classList.contains('hidden')) searchEl?.focus();
+  });
+
+  picker.querySelectorAll('.ip-tab').forEach(tab => {
+    tab.addEventListener('click', () => {
+      picker.querySelectorAll('.ip-tab').forEach(t => {
+        t.classList.remove('btn-primary');
+        t.classList.add('btn-ghost');
+      });
+      tab.classList.add('btn-primary');
+      tab.classList.remove('btn-ghost');
+      const which = tab.dataset.tab;
+      document.getElementById('ip-tab-curated').classList.toggle('hidden', which !== 'curated');
+      document.getElementById('ip-tab-emoji').classList.toggle('hidden', which !== 'emoji');
+      document.getElementById('ip-search-results').classList.add('hidden');
+      if (searchEl) searchEl.value = '';
+    });
+  });
+
+  searchEl?.addEventListener('input', () => {
+    const q = searchEl.value.trim().toLowerCase();
+    const resultsEl = document.getElementById('ip-search-results');
+    const curatedEl = document.getElementById('ip-tab-curated');
+    const emojiEl   = document.getElementById('ip-tab-emoji');
+    if (!q) {
+      resultsEl.classList.add('hidden');
+      const activeTab = picker.querySelector('.ip-tab.btn-primary')?.dataset.tab || 'curated';
+      curatedEl.classList.toggle('hidden', activeTab !== 'curated');
+      emojiEl.classList.toggle('hidden', activeTab !== 'emoji');
+      return;
+    }
+    curatedEl.classList.add('hidden');
+    emojiEl.classList.add('hidden');
+    resultsEl.classList.remove('hidden');
+
+    const all = [
+      ...Object.entries(CURATED_ICONS).flatMap(([cat, icons]) => icons.map(ic => ({ ic, cat }))),
+      ...Object.entries(EMOJI_CATS).flatMap(([cat, icons]) => icons.map(ic => ({ ic, cat }))),
+    ];
+    const matches = all.filter(({ cat }) => cat.toLowerCase().includes(q));
+    resultsEl.innerHTML = matches.length
+      ? `<div style="display:flex;flex-wrap:wrap;gap:1px">${_ipGridHtml(matches.map(m => m.ic))}</div>`
+      : `<div class="text-muted text-sm" style="padding:.5rem">No matches for "${escHtml(q)}"</div>`;
+    wireButtons(resultsEl);
+  });
+
+  clearBtn?.addEventListener('click', () => {
+    hidden.value        = '';
+    preview.textContent = '';
+    toggleBtn.title     = 'Pick icon';
+    picker.classList.add('hidden');
+  });
+
+  wireButtons(picker);
+}
+
 // ── MAIN RENDER ───────────────────────────────────────────────
 export function render(state) {
   const el = document.getElementById('page-settings');
@@ -620,7 +766,14 @@ function openCategoryModal(state, cat = null, parentGroup = null) {
     <div class="form-row">
       <div class="form-group" style="flex:0 0 70px">
         <label class="form-label">Icon</label>
-        <input class="form-input" id="cf-icon" value="${escHtml(cat?.icon || '')}" placeholder="🛒" style="font-size:1.4rem;text-align:center" />
+        <button type="button" id="cf-icon-btn" title="${escHtml(cat?.icon || 'Pick icon')}"
+          style="width:100%;height:38px;font-size:1.4rem;border:1px solid var(--border);
+                 border-radius:var(--radius);background:var(--bg-input);cursor:pointer;
+                 display:flex;align-items:center;justify-content:center;gap:.25rem">
+          <span id="cf-icon-preview">${cat?.icon ? escHtml(cat.icon) : ''}</span>
+          ${!cat?.icon ? `<span style="font-size:.7rem;color:var(--text-muted)">Pick…</span>` : ''}
+        </button>
+        <input type="hidden" id="cf-icon" value="${escHtml(cat?.icon || '')}" />
       </div>
       <div class="form-group" style="flex:1">
         <label class="form-label">Name *</label>
@@ -631,6 +784,7 @@ function openCategoryModal(state, cat = null, parentGroup = null) {
         <input type="color" class="form-input" id="cf-color" value="${cat?.color || '#22c55e'}" style="height:38px;padding:2px 4px" />
       </div>
     </div>
+    ${buildIconPickerHtml()}
     <div class="form-row">
       <div class="form-group" style="flex:1">
         <label class="form-label">Nature</label>
@@ -662,6 +816,7 @@ function openCategoryModal(state, cat = null, parentGroup = null) {
   </form>`;
 
   App.openModal(isEdit ? 'Edit Category' : (isSub ? 'Add Subcategory' : 'Add Category Group'), html);
+  wireIconPicker();
 
   document.getElementById('cat-form')?.addEventListener('submit', async e => {
     e.preventDefault();
