@@ -729,6 +729,7 @@ function renderCategoriesSection(state) {
                 <span class="drag-handle" style="cursor:grab;color:var(--text-muted);font-size:1rem;user-select:none" onclick="event.stopPropagation()">⠿</span>
                 <span class="cat-collapse-chevron text-muted" style="font-size:.75rem;width:1rem;text-align:center;transition:transform .15s">${isCollapsed ? '▸' : '▾'}</span>
                 <span style="font-size:1.1rem">${escHtml(g.icon || '')}</span>
+                ${g.color ? `<span style="width:.6rem;height:.6rem;border-radius:50%;background:${escHtml(g.color)};flex-shrink:0;display:inline-block"></span>` : ''}
                 <div>
                   <div class="fw-500">${escHtml(g.name)}</div>
                   <div class="text-sm text-muted">${g.nature || ''} · ${subs.length} subcategor${subs.length === 1 ? 'y' : 'ies'}</div>
@@ -746,6 +747,7 @@ function renderCategoriesSection(state) {
                   <div class="flex items-center gap-2">
                     <span class="drag-handle" style="cursor:grab;color:var(--text-muted);font-size:1rem;user-select:none">⠿</span>
                     <span>${escHtml(s.icon || '')}</span>
+                    ${s.color ? `<span style="width:.5rem;height:.5rem;border-radius:50%;background:${escHtml(s.color)};flex-shrink:0;display:inline-block"></span>` : ''}
                     <span class="text-sm">${escHtml(s.name)}</span>
                     <span class="badge badge-neutral text-xs">${s.nature || ''}</span>
                   </div>
