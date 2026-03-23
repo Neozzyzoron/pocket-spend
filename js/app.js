@@ -520,12 +520,15 @@ async function boot(user) {
   if (bootInProgress) { console.log('[boot] already in progress, skipping'); return; }
   bootInProgress = true;
 
-  // Hard timeout: if boot hangs > 20s, show auth screen
-  const bootTimeout = setTimeout(() => {
-    console.error('[boot] timed out after 20s');
+  // Hard timeout: if boot hangs > 10s, the Supabase client is likely stuck in a
+  // _recoverAndRefresh loop with a stale/locked localStorage token. Clear it so
+  // the next page load starts fresh instead of hanging again.
+  const bootTimeout = setTimeout(async () => {
+    console.error('[boot] timed out — clearing stale auth token from localStorage');
+    try { await supabase.auth.signOut({ scope: 'local' }); } catch (_) {}
     bootInProgress = false;
     showAuthScreen();
-  }, 20000);
+  }, 10000);
 
   try {
     state.user = user;
