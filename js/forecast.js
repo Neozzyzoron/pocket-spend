@@ -79,7 +79,7 @@ export function render(state) {
     </div>
 
     <!-- Period table -->
-    ${renderPeriodTable(projections, allPeriods, currentPeriod, cur)}
+    ${renderPeriodTable(projections, allPeriods, currentPeriod, cur, state)}
 
     <!-- Category breakdown -->
     ${renderCategoryBreakdown(state, allPeriods, currentPeriod, forecastN, cur)}
@@ -105,6 +105,9 @@ export function render(state) {
   });
   document.getElementById('fc-person-filter')?.addEventListener('change', e => {
     el.dataset.personFilter = e.target.value; render(state);
+  });
+  el.querySelectorAll('.fc-table-view-btn').forEach(btn => {
+    btn.addEventListener('click', () => { el.dataset.tableView = btn.dataset.view; render(state); });
   });
 
   setTimeout(() => drawTimelineChart(projections, allPeriods, currentPeriod, cur), 50);
@@ -173,6 +176,7 @@ function computeProjections(state, periods, currentPeriod, avgWindow, personFilt
       spending: pTx.filter(t => t.type === 'spend').reduce((s,t) => s + Number(t.amount), 0),
       saved: pTx.filter(t => t.type === 'savings').reduce((s,t) => s + Number(t.amount), 0),
       invested: pTx.filter(t => t.type === 'investment').reduce((s,t) => s + Number(t.amount), 0),
+      withdrawn: pTx.filter(t => t.type === 'withdrawal').reduce((s,t) => s + Number(t.amount), 0),
       debt: pTx.filter(t => t.type === 'debt_payment').reduce((s,t) => s + Number(t.amount), 0),
     };
 
@@ -189,17 +193,18 @@ function computeProjections(state, periods, currentPeriod, avgWindow, personFilt
         spending: (recurring.spending + avg.variableSpend),
         saved: recurring.saved || avg.saved,
         invested: recurring.invested || avg.invested,
+        withdrawn: recurring.withdrawn || avg.withdrawn,
         debt: recurring.debt || avg.debt,
       };
 
       // For current period, blend actual so far with projection for remainder
       if (period.isCurrent) {
-        const elapsed = (today - period.start) / (period.end - period.start);
         projected = {
           income: Math.max(actual.income, projected.income),
           spending: Math.max(actual.spending, projected.spending),
           saved: Math.max(actual.saved, projected.saved),
           invested: Math.max(actual.invested, projected.invested),
+          withdrawn: Math.max(actual.withdrawn, projected.withdrawn),
           debt: Math.max(actual.debt, projected.debt),
         };
       }
@@ -212,7 +217,7 @@ function computeProjections(state, periods, currentPeriod, avgWindow, personFilt
 }
 
 function computeRecurringProjection(templates, period, personFilter) {
-  let income = 0, spending = 0, saved = 0, invested = 0, debt = 0;
+  let income = 0, spending = 0, saved = 0, invested = 0, withdrawn = 0, debt = 0;
 
   for (const t of templates.filter(x => x.is_active)) {
     if (personFilter && t.user_id !== personFilter) continue;
@@ -222,10 +227,11 @@ function computeRecurringProjection(templates, period, personFilter) {
     else if (t.type === 'spend') spending += amt;
     else if (t.type === 'savings') saved += amt;
     else if (t.type === 'investment') invested += amt;
+    else if (t.type === 'withdrawal') withdrawn += amt;
     else if (t.type === 'debt_payment') debt += amt;
   }
 
-  return { income, spending, saved, invested, debt };
+  return { income, spending, saved, invested, withdrawn, debt };
 }
 
 function calcOccurrences(t, period) {
@@ -273,6 +279,7 @@ function computeRollingAvg(transactions, histPeriods, txFilter) {
       variableSpend: ptx.filter(t => t.type === 'spend').reduce((s,t) => s + Number(t.amount), 0),
       saved: ptx.filter(t => t.type === 'savings' && !t.is_recurring).reduce((s,t) => s + Number(t.amount), 0),
       invested: ptx.filter(t => t.type === 'investment' && !t.is_recurring).reduce((s,t) => s + Number(t.amount), 0),
+      withdrawn: ptx.filter(t => t.type === 'withdrawal' && !t.is_recurring).reduce((s,t) => s + Number(t.amount), 0),
       debt: ptx.filter(t => t.type === 'debt_payment' && !t.is_recurring).reduce((s,t) => s + Number(t.amount), 0),
     };
   });
@@ -283,6 +290,7 @@ function computeRollingAvg(transactions, histPeriods, txFilter) {
     variableSpend: avg('variableSpend'),
     saved: avg('saved'),
     invested: avg('invested'),
+    withdrawn: avg('withdrawn'),
     debt: avg('debt'),
   };
 }
@@ -365,23 +373,89 @@ function drawTimelineChart(projections, periods, currentPeriod, cur) {
 }
 
 // ── PERIOD TABLE ──────────────────────────────────────────────
-function renderPeriodTable(projections, periods, currentPeriod, cur) {
+function renderPeriodTable(projections, periods, currentPeriod, cur, state) {
+  const el = document.getElementById('page-forecast');
+  const tableView = el?.dataset.tableView || 'both';
+
   const rows = [
-    { key: 'income',   label: 'Income' },
-    { key: 'spending', label: 'Spending' },
-    { key: 'saved',    label: 'Saved' },
-    { key: 'invested', label: 'Invested' },
-    { key: 'debt',     label: 'Debt Payments' },
+    { key: 'income',    label: 'Income' },
+    { key: 'spending',  label: 'Spending' },
+    { key: 'saved',     label: 'Saved' },
+    { key: 'invested',  label: 'Invested' },
+    { key: 'withdrawn', label: 'Withdrawn' },
+    { key: 'debt',      label: 'Debt Payments' },
   ];
 
-  const fmt = (val, isFuture) => {
+  // Get the display value for a projection+key based on current tableView
+  const getVal = (p, key) => {
+    if (tableView === 'actuals') return p.actual[key] ?? 0;
+    if (tableView === 'projected') return p.projected?.[key] ?? null;
+    // 'both': actual for past, projected for current+future
+    return (p.period.isFuture || p.period.isCurrent) ? (p.projected?.[key] ?? null) : (p.actual[key] ?? 0);
+  };
+
+  const isProjectedCell = (p) =>
+    tableView === 'projected' || (tableView === 'both' && (p.period.isFuture || p.period.isCurrent));
+
+  const fmt = (val, proj) => {
     if (val === null || val === undefined) return '—';
-    const s = fmtCurrency(val, App.currency());
-    return isFuture ? `<span class="text-muted" style="font-style:italic">~ ${s}</span>` : s;
+    const s = fmtCurrency(val, cur);
+    return proj ? `<span class="text-muted" style="font-style:italic">~ ${s}</span>` : s;
+  };
+
+  // Net = income + withdrawn - spending - saved - invested - debt
+  const netVal = (p) => {
+    const income = getVal(p, 'income');
+    if (income === null) return null;
+    return (income || 0) + (getVal(p, 'withdrawn') || 0)
+      - (getVal(p, 'spending') || 0) - (getVal(p, 'saved') || 0)
+      - (getVal(p, 'invested') || 0) - (getVal(p, 'debt') || 0);
+  };
+
+  // Running liquid balance anchored at current period end = current liquid balance
+  const currentLiquidBal = state.accounts
+    .filter(a => !a.is_archived && isLiquid(a))
+    .reduce((s, a) => s + calcAccountBalance(a, state.transactions), 0);
+
+  const currentIdx = projections.findIndex(p => p.period.isCurrent);
+  const balances = projections.map(() => null);
+  if (currentIdx >= 0) {
+    balances[currentIdx] = currentLiquidBal;
+    for (let i = currentIdx + 1; i < projections.length; i++) {
+      balances[i] = balances[i-1] + (netVal(projections[i]) || 0);
+    }
+    for (let i = currentIdx - 1; i >= 0; i--) {
+      balances[i] = balances[i+1] - (netVal(projections[i+1]) || 0);
+    }
+  }
+
+  const totalFor = key => projections.reduce((s, p) => s + (getVal(p, key) || 0), 0);
+  const avgFor = key => {
+    const vals = projections.map(p => getVal(p, key)).filter(v => v !== null);
+    return vals.length ? vals.reduce((s, v) => s + v, 0) / vals.length : 0;
+  };
+
+  const netVals = projections.map(p => netVal(p));
+  const totalNet = netVals.reduce((s, v) => s + (v || 0), 0);
+  const validNets = netVals.filter(v => v !== null);
+  const avgNet = validNets.length ? totalNet / validNets.length : 0;
+
+  const fmtNet = (net, proj) => {
+    if (net === null) return '—';
+    const cls = net >= 0 ? 'c-green' : 'c-red';
+    const s = (net < 0 ? '−' : '') + fmtCurrency(Math.abs(net), cur);
+    return proj ? `<span class="${cls}" style="font-style:italic">~ ${s}</span>` : `<span class="${cls}">${s}</span>`;
   };
 
   return `<div class="section">
-    <div class="section-header"><div class="section-title">Period Table</div></div>
+    <div class="section-header">
+      <div class="section-title">Period Table</div>
+      <div class="toggle-group">
+        <button class="toggle-group-btn fc-table-view-btn${tableView==='both'?' active':''}" data-view="both">Both</button>
+        <button class="toggle-group-btn fc-table-view-btn${tableView==='actuals'?' active':''}" data-view="actuals">Actuals</button>
+        <button class="toggle-group-btn fc-table-view-btn${tableView==='projected'?' active':''}" data-view="projected">Projections</button>
+      </div>
+    </div>
     <div class="card" style="padding:0">
       <div class="table-wrap">
         <table class="table">
@@ -389,23 +463,44 @@ function renderPeriodTable(projections, periods, currentPeriod, cur) {
             <th style="position:sticky;left:0;background:var(--surface);z-index:1">Metric</th>
             ${projections.map(p => `<th class="amount-col${p.period.isCurrent ? ' fw-600' : p.period.isFuture ? ' text-muted' : ''}">${escHtml(p.period.label)}</th>`).join('')}
             <th class="amount-col fw-600">Total</th>
+            <th class="amount-col text-muted">Avg</th>
           </tr></thead>
           <tbody>
             ${rows.map(r => {
-              const total = projections.reduce((s, p) => {
-                const val = p.period.isFuture ? (p.projected?.[r.key] || 0) : (p.actual[r.key] || 0);
-                return s + val;
-              }, 0);
+              const total = totalFor(r.key);
+              const avg = avgFor(r.key);
               return `<tr>
                 <td style="position:sticky;left:0;background:var(--surface)">${r.label}</td>
                 ${projections.map(p => {
-                  const isFuture = p.period.isFuture;
-                  const val = isFuture ? p.projected?.[r.key] : p.actual[r.key];
-                  return `<td class="amount-col text-mono text-sm">${fmt(val, isFuture)}</td>`;
+                  const val = getVal(p, r.key);
+                  const proj = isProjectedCell(p) && val !== null;
+                  return `<td class="amount-col text-mono text-sm">${fmt(val, proj)}</td>`;
                 }).join('')}
-                <td class="amount-col text-mono fw-600">${fmtCurrency(total, App.currency())}</td>
+                <td class="amount-col text-mono fw-600">${fmtCurrency(total, cur)}</td>
+                <td class="amount-col text-mono text-muted">${fmtCurrency(avg, cur)}</td>
               </tr>`;
             }).join('')}
+            <tr style="border-top:2px solid var(--border)">
+              <td style="position:sticky;left:0;background:var(--surface);font-weight:600">Net</td>
+              ${projections.map((p, i) => {
+                const net = netVals[i];
+                const proj = isProjectedCell(p) && net !== null;
+                return `<td class="amount-col text-mono text-sm fw-600">${fmtNet(net, proj)}</td>`;
+              }).join('')}
+              <td class="amount-col text-mono fw-600">${fmtNet(totalNet, false)}</td>
+              <td class="amount-col text-mono text-muted">${fmtNet(avgNet, false)}</td>
+            </tr>
+            ${currentIdx >= 0 ? `<tr>
+              <td style="position:sticky;left:0;background:var(--surface);font-weight:600">Balance</td>
+              ${projections.map((p, i) => {
+                const bal = balances[i];
+                if (bal === null) return `<td class="amount-col text-mono text-sm text-muted">—</td>`;
+                const cls = bal >= 0 ? 'c-green' : 'c-red';
+                const s = fmtCurrency(bal, cur);
+                return `<td class="amount-col text-mono text-sm ${cls}">${p.period.isFuture ? `<span style="font-style:italic">~ </span>` : ''}${s}</td>`;
+              }).join('')}
+              <td class="amount-col" colspan="2"></td>
+            </tr>` : ''}
           </tbody>
         </table>
       </div>
