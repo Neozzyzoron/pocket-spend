@@ -249,9 +249,12 @@ async function loadAllData() {
   ]);
 
   // Load custom account types separately so a missing table never breaks the main load
-  const { data: customAccountTypes } = await supabase
-    .from('custom_account_types').select('*').eq('household_id', hid).order('label')
-    .catch(() => ({ data: [] }));
+  let customAccountTypes = [];
+  try {
+    const { data: catData } = await supabase
+      .from('custom_account_types').select('*').eq('household_id', hid).order('label');
+    customAccountTypes = catData || [];
+  } catch (_) {}
 
   state.accounts            = accounts || [];
   state.categories          = categories || [];
