@@ -514,6 +514,7 @@ function showSignupError(errEl, btn, msg) {
 
 // ── BOOT SEQUENCE ─────────────────────────────────────────────
 let bootInProgress = false;
+let booted = false; // true once app has successfully booted; prevents re-boot on TOKEN_REFRESHED
 async function boot(user) {
   if (bootInProgress) { console.log('[boot] already in progress, skipping'); return; }
   bootInProgress = true;
@@ -586,6 +587,7 @@ async function boot(user) {
     const validPage = NAV_PAGES[lastPage] ? lastPage : 'dashboard';
     console.log('[boot] navigating to', validPage);
     navigate(validPage);
+    booted = true;
     clearTimeout(bootTimeout);
     bootInProgress = false;
   } catch (err) {
@@ -685,10 +687,13 @@ async function init() {
 
     } else if (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED') {
       clearTimeout(authDeadline);
-      if (session?.user && !isSigningUp) await boot(session.user);
+      // Only boot if not already successfully booted — prevents TOKEN_REFRESHED (fires every ~50min)
+      // from triggering a re-boot mid-session which could sign the user out if it fails
+      if (session?.user && !isSigningUp && !booted) await boot(session.user);
 
     } else if (event === 'SIGNED_OUT') {
       clearTimeout(authDeadline);
+      booted = false;
       if (!bootInProgress) showAuthScreen();
     }
   });
