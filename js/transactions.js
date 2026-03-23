@@ -299,6 +299,16 @@ function renderTable(state) {
       else selectedIds.delete(cb.dataset.id);
     });
   });
+
+  document.querySelectorAll('.tx-row-fav').forEach(btn => {
+    btn.addEventListener('click', e => {
+      e.stopPropagation();
+      toggleQpFav(state, btn.dataset.id);
+      const fav = isQpFav(state, btn.dataset.id);
+      btn.textContent = fav ? '★' : '☆';
+      btn.style.color = fav ? 'var(--accent)' : 'var(--text-muted)';
+    });
+  });
 }
 
 function renderRow(tx, state, cur, cols = DEFAULT_COLUMNS, runningBalMap = {}) {
@@ -337,6 +347,7 @@ function renderRow(tx, state, cur, cols = DEFAULT_COLUMNS, runningBalMap = {}) {
     <td>
       <div class="flex gap-1">
         ${isPending ? `<button class="btn btn-ghost btn-sm tx-row-confirm" data-id="${tx.id}" title="Confirm">✓</button>` : ''}
+        <button class="btn btn-ghost btn-sm tx-row-fav" data-id="${tx.id}" title="Quick add favourite" style="color:${isQpFav(state, tx.id) ? 'var(--accent)' : 'var(--text-muted)'}">${isQpFav(state, tx.id) ? '★' : '☆'}</button>
         <button class="btn btn-ghost btn-sm tx-row-edit" data-id="${tx.id}" title="Edit">✎</button>
         <button class="btn btn-ghost btn-sm tx-row-delete" data-id="${tx.id}" title="Delete">✕</button>
       </div>
@@ -565,6 +576,42 @@ function exportCSV(state) {
   URL.revokeObjectURL(url);
 }
 
+// ── QUICK PICKS (favorites) ────────────────────────────────────
+function qpKey(state) { return `qp_${state.user?.id || 'default'}`; }
+
+function getQuickPickIds(state) {
+  try { return JSON.parse(localStorage.getItem(qpKey(state)) || 'null'); } catch { return null; }
+}
+
+function setQuickPickIds(state, ids) {
+  localStorage.setItem(qpKey(state), JSON.stringify(ids));
+}
+
+function isQpFav(state, txId) {
+  const ids = getQuickPickIds(state);
+  return Array.isArray(ids) && ids.includes(txId);
+}
+
+function toggleQpFav(state, txId) {
+  const freq = buildFreqMap(state);
+  const all = freq.map(f => f.tx.id);
+  let ids = getQuickPickIds(state);
+  if (!Array.isArray(ids)) ids = all.slice(0, 10);
+  if (ids.includes(txId)) ids = ids.filter(i => i !== txId);
+  else ids = [txId, ...ids].slice(0, 10);
+  setQuickPickIds(state, ids);
+}
+
+function buildFreqMap(state) {
+  const freq = {};
+  for (const t of state.transactions) {
+    if (!t.description) continue;
+    if (!freq[t.description]) freq[t.description] = { tx: t, count: 0 };
+    freq[t.description].count++;
+  }
+  return Object.values(freq).sort((a, b) => b.count - a.count);
+}
+
 // ── ADD / EDIT MODAL ──────────────────────────────────────────
 export function openTxModal(state, tx = null) {
   const isEdit = !!tx;
@@ -572,25 +619,42 @@ export function openTxModal(state, tx = null) {
   const cur = App.currency();
   const defaultType = tx?.type || 'spend';
 
-  // Build quick-pick chips from most frequent past transactions
+  // Build quick-pick list: saved favorites or top-10 frequent
   let quickPicks = [];
   if (!isEdit) {
-    const freq = {};
-    for (const t of state.transactions) {
-      if (!t.description) continue;
-      const key = t.description;
-      if (!freq[key]) freq[key] = { tx: t, count: 0 };
-      freq[key].count++;
+    const freq = buildFreqMap(state);
+    const savedIds = getQuickPickIds(state);
+    if (Array.isArray(savedIds)) {
+      savedIds.forEach(id => {
+        const hit = state.transactions.find(t => t.id === id);
+        if (hit) quickPicks.push({ tx: hit });
+      });
+    } else {
+      quickPicks = freq.slice(0, 10);
     }
-    quickPicks = Object.values(freq).sort((a, b) => b.count - a.count).slice(0, 6);
   }
 
   const html = `
     <form id="tx-form" autocomplete="off">
-      ${quickPicks.length ? `<div style="margin-bottom:1rem">
-        <div class="text-sm text-muted" style="margin-bottom:.4rem">Quick add</div>
-        <div style="display:flex;flex-wrap:wrap;gap:.4rem">
+      ${!isEdit ? `<div style="margin-bottom:1rem" id="qp-section">
+        <div class="flex items-center justify-between" style="margin-bottom:.4rem">
+          <span class="text-sm text-muted">Quick add</span>
+          <button type="button" class="btn btn-ghost btn-sm" id="qp-manage-btn" style="font-size:.75rem;padding:.1rem .5rem">✎ Manage</button>
+        </div>
+        <div id="qp-chips" style="display:flex;flex-wrap:wrap;gap:.4rem">
           ${quickPicks.map(({tx: t}) => `<button type="button" class="chip quick-pick-btn" data-id="${t.id}" style="cursor:pointer">${escHtml(t.description)}</button>`).join('')}
+        </div>
+        <div id="qp-picker" style="display:none;margin-top:.6rem;border:1px solid var(--border);border-radius:var(--radius);padding:.6rem;max-height:200px;overflow-y:auto">
+          <div class="text-sm text-muted" style="margin-bottom:.5rem">★ = shown in quick add (up to 10)</div>
+          ${buildFreqMap(state).slice(0, 20).map(({tx: t}) => {
+            const fav = Array.isArray(getQuickPickIds(state))
+              ? getQuickPickIds(state).includes(t.id)
+              : quickPicks.some(q => q.tx.id === t.id);
+            return `<div class="flex items-center justify-between" style="padding:.25rem 0;border-bottom:1px solid var(--border)20">
+              <span class="text-sm">${escHtml(t.description)}</span>
+              <button type="button" class="btn btn-ghost btn-sm qp-toggle-btn" data-id="${t.id}" style="font-size:1rem;padding:.1rem .4rem;color:${fav ? 'var(--accent)' : 'var(--text-muted)'}">${fav ? '★' : '☆'}</button>
+            </div>`;
+          }).join('')}
         </div>
       </div>` : ''}
       <div class="form-row">
@@ -659,17 +723,45 @@ export function openTxModal(state, tx = null) {
   renderTxAccountFields(state, tx);
 
   // Quick-pick chips pre-fill the form
-  document.querySelectorAll('.quick-pick-btn').forEach(btn => {
-    btn.addEventListener('click', () => {
-      const t = state.transactions.find(x => x.id === btn.dataset.id);
-      if (!t) return;
-      document.getElementById('tf-desc').value = t.description || '';
-      document.getElementById('tf-type').value = t.type || 'spend';
-      document.getElementById('tf-cat').value = t.category_id || '';
-      document.getElementById('tf-amount').value = t.amount || '';
-      if (t.user_id) document.getElementById('tf-person').value = t.user_id;
-      renderTxAccountFields(state, t);
+  function wireQuickPickChips() {
+    document.querySelectorAll('.quick-pick-btn').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const t = state.transactions.find(x => x.id === btn.dataset.id);
+        if (!t) return;
+        document.getElementById('tf-desc').value = t.description || '';
+        document.getElementById('tf-type').value = t.type || 'spend';
+        document.getElementById('tf-cat').value = t.category_id || '';
+        document.getElementById('tf-amount').value = t.amount || '';
+        if (t.user_id) document.getElementById('tf-person').value = t.user_id;
+        renderTxAccountFields(state, t);
+      });
     });
+  }
+  wireQuickPickChips();
+
+  // Manage panel toggle & favorite toggling
+  document.getElementById('qp-manage-btn')?.addEventListener('click', () => {
+    const picker = document.getElementById('qp-picker');
+    picker.style.display = picker.style.display === 'none' ? 'block' : 'none';
+  });
+
+  document.getElementById('qp-picker')?.addEventListener('click', e => {
+    const btn = e.target.closest('.qp-toggle-btn');
+    if (!btn) return;
+    const id = btn.dataset.id;
+    toggleQpFav(state, id);
+    const isFav = isQpFav(state, id);
+    btn.textContent = isFav ? '★' : '☆';
+    btn.style.color = isFav ? 'var(--accent)' : 'var(--text-muted)';
+    // Rebuild chips
+    const ids = getQuickPickIds(state);
+    const newPicks = Array.isArray(ids)
+      ? ids.map(i => state.transactions.find(t => t.id === i)).filter(Boolean)
+      : buildFreqMap(state).slice(0, 10).map(f => f.tx);
+    document.getElementById('qp-chips').innerHTML = newPicks
+      .map(t => `<button type="button" class="chip quick-pick-btn" data-id="${t.id}" style="cursor:pointer">${escHtml(t.description)}</button>`)
+      .join('');
+    wireQuickPickChips();
   });
 
   // Auto-set type from category
