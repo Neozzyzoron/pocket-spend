@@ -9,6 +9,9 @@ import {
   wireDragReorder,
 } from './utils.js';
 
+// Persists collapse state within the session
+const collapsedGroups = new Set();
+
 // ── ICON PICKER DATA ──────────────────────────────────────────
 const CURATED_ICONS = {
   'Food & Drink':  ['🍔','🍕','🍜','🥗','🍺','☕','🍰','🥩','🍱','🍣','🍦','🥤','🍷','🍳','🥐','🧁','🫕','🥘'],
@@ -719,14 +722,16 @@ function renderCategoriesSection(state) {
         `<div id="cat-groups-list">` +
         groups.map(g => {
           const subs = subsByParent[g.id] || [];
+          const isCollapsed = collapsedGroups.has(g.id);
           return `<div class="cat-group-row" data-id="${g.id}" style="border-bottom:1px solid var(--border)">
             <div class="flex items-center justify-between" style="padding:.65rem 1rem">
-              <div class="flex items-center gap-2">
-                <span class="drag-handle" style="cursor:grab;color:var(--text-muted);font-size:1rem;user-select:none">⠿</span>
+              <div class="flex items-center gap-2" style="cursor:pointer;flex:1" data-collapse-toggle="${g.id}">
+                <span class="drag-handle" style="cursor:grab;color:var(--text-muted);font-size:1rem;user-select:none" onclick="event.stopPropagation()">⠿</span>
+                <span class="cat-collapse-chevron text-muted" style="font-size:.75rem;width:1rem;text-align:center;transition:transform .15s">${isCollapsed ? '▸' : '▾'}</span>
                 <span style="font-size:1.1rem">${escHtml(g.icon || '')}</span>
                 <div>
                   <div class="fw-500">${escHtml(g.name)}</div>
-                  <div class="text-sm text-muted">${g.nature || ''} · ${subs.length} subcategories</div>
+                  <div class="text-sm text-muted">${g.nature || ''} · ${subs.length} subcategor${subs.length === 1 ? 'y' : 'ies'}</div>
                 </div>
               </div>
               <div class="flex gap-1">
@@ -735,7 +740,7 @@ function renderCategoriesSection(state) {
                 <button class="btn btn-ghost btn-sm btn-danger cat-delete-btn" data-id="${g.id}">✕</button>
               </div>
             </div>
-            <div class="cat-subs-list" data-parent="${g.id}">
+            <div class="cat-subs-list${isCollapsed ? ' hidden' : ''}" data-parent="${g.id}">
               ${subs.map(s => `<div class="cat-sub-row" data-id="${s.id}" style="padding:.5rem 1rem .5rem 2.5rem;border-top:1px solid var(--border)40">
                 <div class="flex items-center justify-between">
                   <div class="flex items-center gap-2">
@@ -783,6 +788,20 @@ function wireCategoriesSection(state) {
   // Drag reorder — subs within each group
   document.querySelectorAll('.cat-subs-list[data-parent]').forEach(list => {
     wireDragReorder(list, '.cat-sub-row[data-id]', ids => saveCatOrder(ids, state));
+  });
+
+  // Collapse/expand group on header click
+  el.querySelectorAll('[data-collapse-toggle]').forEach(header => {
+    header.addEventListener('click', () => {
+      const id = header.dataset.collapseToggle;
+      const subsList = el.querySelector(`.cat-subs-list[data-parent="${id}"]`);
+      const chevron = header.querySelector('.cat-collapse-chevron');
+      if (!subsList) return;
+      const closing = !subsList.classList.contains('hidden');
+      subsList.classList.toggle('hidden', closing);
+      if (chevron) chevron.textContent = closing ? '▸' : '▾';
+      if (closing) collapsedGroups.add(id); else collapsedGroups.delete(id);
+    });
   });
 
   document.getElementById('settings-add-group-btn')?.addEventListener('click', () => openCategoryModal(state));
