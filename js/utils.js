@@ -488,3 +488,81 @@ export function sumByType(transactions, type) {
     .filter(tx => isEffective(tx) && tx.type === type)
     .reduce((s, tx) => s + Number(tx.amount), 0);
 }
+
+// ── COLOR SWATCHES ────────────────────────────────────────────
+
+const _FALLBACK_COLORS = [
+  '#22c55e','#3b82f6','#ef4444','#f59e0b','#8b5cf6','#ec4899',
+  '#06b6d4','#f97316','#10b981','#6366f1','#84cc16','#e11d48',
+];
+
+/** Returns HTML for a row of color swatches linked to an <input type="color" id="inputId"> */
+export function colorSwatchesHtml(inputId) {
+  const theme = window.App?.state?.settings?.theme || {};
+  const saved = Array.isArray(theme.saved) ? theme.saved : [];
+  const seen = new Set();
+  const colors = [];
+  const add = c => { if (c && !seen.has(c)) { seen.add(c); colors.push(c); } };
+  if (theme.accent) add(theme.accent);
+  saved.forEach(p => { add(p.accent); add(p.bg); });
+  _FALLBACK_COLORS.forEach(add);
+  return `<div class="csw-row" data-for="${escHtml(inputId)}" style="display:flex;flex-wrap:wrap;gap:3px;margin-bottom:.4rem">
+    ${colors.slice(0, 18).map(c =>
+      `<button type="button" class="csw-btn" data-color="${escHtml(c)}" title="${escHtml(c)}"
+        style="width:22px;height:22px;border-radius:3px;background:${c};
+               border:2px solid transparent;cursor:pointer;padding:0;flex-shrink:0"></button>`
+    ).join('')}
+  </div>`;
+}
+
+/** Wire swatch buttons inside root to their linked color input */
+export function wireColorSwatches(root = document) {
+  root.querySelectorAll('.csw-row').forEach(row => {
+    const input = document.getElementById(row.dataset.for);
+    if (!input) return;
+    const highlight = val => {
+      row.querySelectorAll('.csw-btn').forEach(b =>
+        b.style.borderColor = b.dataset.color === val ? 'var(--text)' : 'transparent'
+      );
+    };
+    highlight(input.value);
+    row.querySelectorAll('.csw-btn').forEach(btn => {
+      btn.addEventListener('click', () => {
+        input.value = btn.dataset.color;
+        input.dispatchEvent(new Event('input', { bubbles: true }));
+        input.dispatchEvent(new Event('change', { bubbles: true }));
+        highlight(btn.dataset.color);
+      });
+    });
+  });
+}
+
+/** Minimal drag-to-reorder wiring for a list container.
+ *  rowSel: CSS selector for draggable rows (must have data-id).
+ *  onDrop(orderedIds): called after a drop with the new id order. */
+export function wireDragReorder(container, rowSel, onDrop) {
+  if (!container) return;
+  let src = null;
+  const rows = () => [...container.querySelectorAll(rowSel)];
+
+  container.querySelectorAll(rowSel).forEach(row => {
+    row.setAttribute('draggable', 'true');
+    row.addEventListener('dragstart', e => {
+      src = row;
+      e.dataTransfer.effectAllowed = 'move';
+      setTimeout(() => { if (src) src.style.opacity = '0.4'; }, 0);
+    });
+    row.addEventListener('dragend', () => {
+      if (src) src.style.opacity = '1';
+      src = null;
+      onDrop(rows().map(r => r.dataset.id));
+    });
+    row.addEventListener('dragover', e => {
+      if (!src || src === row) return;
+      e.preventDefault();
+      const mid = row.getBoundingClientRect().top + row.getBoundingClientRect().height / 2;
+      if (e.clientY < mid) container.insertBefore(src, row);
+      else row.after(src);
+    });
+  });
+}
