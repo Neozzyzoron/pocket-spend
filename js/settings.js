@@ -308,6 +308,8 @@ function wireTheme(state) {
     if (!error) {
       if (!state.settings) state.settings = { theme: {}, account_order: [] };
       state.settings.theme = updated;
+      // Mirror to localStorage so applyTheme runs instantly on next page load
+      try { localStorage.setItem('pocket_theme', JSON.stringify(updated)); } catch (_) {}
     }
     return error;
   }

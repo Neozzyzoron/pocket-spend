@@ -258,8 +258,9 @@ async function loadAllData() {
   state.settings          = settings || { theme: {}, account_order: [] };
   state.accountOrder      = state.settings.account_order || [];
 
-  // Apply theme
+  // Apply theme — also cache in localStorage for instant apply on next page load
   applyTheme(state.settings.theme);
+  try { localStorage.setItem('pocket_theme', JSON.stringify(state.settings.theme || {})); } catch (_) {}
 
   // Merge current user's prefs
   const myProfile = state.profiles.find(p => p.id === state.user.id);
@@ -612,7 +613,7 @@ function hideLoading() {
 
 // ── INIT ──────────────────────────────────────────────────────
 async function init() {
-  // Wire auth form toggles
+  // ── Wire auth form toggles
   document.getElementById('show-signup').addEventListener('click', e => {
     e.preventDefault();
     document.getElementById('login-form').classList.add('hidden');
@@ -624,15 +625,15 @@ async function init() {
     document.getElementById('login-form').classList.remove('hidden');
   });
 
-  // Login / signup submit
+  // ── Login / signup submit
   document.getElementById('login-btn').addEventListener('click', handleLogin);
   document.getElementById('signup-btn').addEventListener('click', handleSignup);
 
-  // Household choice toggle
+  // ── Household choice toggle
   document.getElementById('choice-create').addEventListener('click', () => switchHouseholdChoice('create'));
   document.getElementById('choice-join').addEventListener('click',   () => switchHouseholdChoice('join'));
 
-  // Sidebar
+  // ── Sidebar
   document.getElementById('hamburger').addEventListener('click', openSidebar);
   document.getElementById('sidebar-close').addEventListener('click', closeSidebar);
   document.getElementById('sidebar-overlay').addEventListener('click', closeSidebar);
@@ -657,42 +658,22 @@ async function init() {
     });
   });
 
-  // Safety net: if nothing resolves auth within 12s, check session manually
-  const authDeadline = setTimeout(async () => {
-    if (bootInProgress) return;
-    console.warn('[auth] deadline reached — falling back to getSession');
-    const { data: { session } } = await supabase.auth.getSession();
-    if (session?.user) await boot(session.user);
-    else showAuthScreen();
-  }, 12000);
+  // ── Auth: check for an existing session on every page load/refresh.
+  // getSession() reads from localStorage and auto-refreshes expired tokens.
+  // This is simpler and more reliable than parsing onAuthStateChange events.
+  const { data: { session } } = await supabase.auth.getSession();
+  if (session?.user) {
+    await boot(session.user);
+  } else {
+    showAuthScreen();
+  }
 
-  // Auth state listener — handles all session events
+  // ── Auth: listen only for explicit sign-in (login button) and sign-out.
+  // TOKEN_REFRESHED and INITIAL_SESSION are handled transparently by the Supabase client.
   supabase.auth.onAuthStateChange(async (event, session) => {
-    console.log('[auth] event:', event, 'user:', session?.user?.email, 'expires_at:', session?.expires_at);
-
-    if (event === 'INITIAL_SESSION') {
-      if (!session?.user) {
-        clearTimeout(authDeadline);
-        showAuthScreen();
-        return;
-      }
-      // Only boot immediately if the access token is still valid.
-      // If expired, Supabase will fire TOKEN_REFRESHED shortly — keep authDeadline running as safety net.
-      const expiresAt = session.expires_at ? session.expires_at * 1000 : Date.now() + 3600000;
-      if (expiresAt > Date.now() + 5000) {
-        clearTimeout(authDeadline);
-        if (!isSigningUp) await boot(session.user);
-      }
-      // else: expired token — wait for TOKEN_REFRESHED; authDeadline will fire after 12s as fallback
-
-    } else if (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED') {
-      clearTimeout(authDeadline);
-      // Only boot if not already successfully booted — prevents TOKEN_REFRESHED (fires every ~50min)
-      // from triggering a re-boot mid-session which could sign the user out if it fails
-      if (session?.user && !isSigningUp && !booted) await boot(session.user);
-
+    if (event === 'SIGNED_IN' && !booted && !isSigningUp) {
+      await boot(session.user);
     } else if (event === 'SIGNED_OUT') {
-      clearTimeout(authDeadline);
       booted = false;
       if (!bootInProgress) showAuthScreen();
     }
