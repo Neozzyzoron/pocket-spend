@@ -83,6 +83,9 @@ export function render(state) {
 
     <!-- Category breakdown -->
     ${renderCategoryBreakdown(state, allPeriods, currentPeriod, forecastN, cur)}
+
+    <!-- Forecast accuracy -->
+    ${renderForecastAccuracy(state, allPeriods, cur)}
   `;
 
   // Wire filters
@@ -403,6 +406,109 @@ function renderPeriodTable(projections, periods, currentPeriod, cur) {
                 <td class="amount-col text-mono fw-600">${fmtCurrency(total, App.currency())}</td>
               </tr>`;
             }).join('')}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>`;
+}
+
+// ── FORECAST ACCURACY ────────────────────────────────────────
+function renderForecastAccuracy(state, allPeriods, cur) {
+  // Only completed past (non-current, non-future) periods can be evaluated
+  const completedPast = allPeriods.filter(p => !p.isFuture && !p.isCurrent);
+  if (completedPast.length < 2) {
+    return `<div class="section">
+      <div class="section-header"><div class="section-title">Forecast Accuracy</div></div>
+      <div class="card">
+        <p class="text-muted text-sm">Not enough history yet — accuracy metrics will appear after at least 2 completed periods.</p>
+      </div>
+    </div>`;
+  }
+
+  const { transactions } = state;
+  const metrics = ['income','spending','saved','invested','debt'];
+  const metricLabels = { income:'Income', spending:'Spending', saved:'Saved', invested:'Invested', debt:'Debt Payments' };
+  const typeMap = { income:'income', spending:'spend', saved:'savings', invested:'investment', debt:'debt_payment' };
+
+  // For each period (from 2nd onward), compute projection from all prior periods, then compare to actual
+  const evalPeriods = completedPast.slice(1); // need at least 1 prior period as history
+
+  const rows = evalPeriods.map(period => {
+    const priorPeriods = completedPast.filter(p => p.end < period.start);
+    const avgN = Math.min(3, priorPeriods.length);
+    const histWindow = priorPeriods.slice(-avgN);
+
+    const projected = {};
+    const actual = {};
+    for (const m of metrics) {
+      const actuals = histWindow.map(p =>
+        transactions.filter(tx => isEffective(tx) && tx.type === typeMap[m] &&
+          parseISO(tx.date) >= p.start && parseISO(tx.date) <= p.end
+        ).reduce((s, tx) => s + Number(tx.amount), 0)
+      );
+      projected[m] = actuals.length ? actuals.reduce((s,v) => s+v, 0) / actuals.length : 0;
+
+      actual[m] = transactions.filter(tx => isEffective(tx) && tx.type === typeMap[m] &&
+        parseISO(tx.date) >= period.start && parseISO(tx.date) <= period.end
+      ).reduce((s, tx) => s + Number(tx.amount), 0);
+    }
+    return { label: period.label, projected, actual };
+  });
+
+  // Compute overall accuracy per metric
+  const metricAccuracy = metrics.map(m => {
+    const vals = rows.map(r => {
+      if (r.projected[m] === 0 && r.actual[m] === 0) return null;
+      if (r.projected[m] === 0) return null;
+      return 1 - Math.abs(r.actual[m] - r.projected[m]) / r.projected[m];
+    }).filter(v => v !== null);
+    const avg = vals.length ? vals.reduce((s,v) => s+v, 0) / vals.length : null;
+    const bias = rows.reduce((s, r) => s + (r.actual[m] - r.projected[m]), 0) / rows.length;
+    return { m, avg, bias };
+  });
+
+  return `<div class="section">
+    <div class="section-header">
+      <div class="section-title">Forecast Accuracy</div>
+      <div class="text-sm text-muted">Projected vs actual for completed periods</div>
+    </div>
+
+    <!-- Accuracy summary cards -->
+    <div class="stat-grid" style="grid-template-columns:repeat(${Math.min(metrics.length,5)},1fr);margin-bottom:1rem">
+      ${metricAccuracy.map(({ m, avg, bias }) => {
+        const pct = avg !== null ? Math.round(avg * 100) : null;
+        const cls = pct === null ? 'text-muted' : pct >= 85 ? 'c-green' : pct >= 70 ? 'c-amber' : 'c-red';
+        const biasDir = bias > 50 ? '▲ over' : bias < -50 ? '▼ under' : '≈ on track';
+        return `<div class="card card-sm">
+          <div class="card-title text-muted text-sm">${metricLabels[m]}</div>
+          <div class="card-value text-mono ${cls}">${pct !== null ? pct + '%' : '—'}</div>
+          <div class="text-sm text-muted">${biasDir}</div>
+        </div>`;
+      }).join('')}
+    </div>
+
+    <!-- Period comparison table -->
+    <div class="card" style="padding:0">
+      <div class="table-wrap">
+        <table class="table">
+          <thead><tr>
+            <th>Period</th>
+            ${metrics.map(m => `<th class="amount-col">${metricLabels[m]}<br/><span class="text-muted" style="font-weight:400;font-size:.75rem">proj / actual</span></th>`).join('')}
+          </tr></thead>
+          <tbody>
+            ${rows.map(r => `<tr>
+              <td class="text-sm" style="white-space:nowrap">${escHtml(r.label)}</td>
+              ${metrics.map(m => {
+                const p = r.projected[m], a = r.actual[m];
+                const variance = a - p;
+                const cls = Math.abs(variance) < p * 0.1 ? '' : variance > 0 ? 'c-red' : 'c-green';
+                return `<td class="amount-col text-sm">
+                  <span class="text-muted">${fmtCurrency(p, cur)}</span> /
+                  <span class="${cls}">${fmtCurrency(a, cur)}</span>
+                </td>`;
+              }).join('')}
+            </tr>`).join('')}
           </tbody>
         </table>
       </div>

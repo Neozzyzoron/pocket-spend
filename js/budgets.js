@@ -8,13 +8,19 @@ import {
   buildCategoryOptions, getPeriods,
 } from './utils.js';
 
+let overtimeChart = null;
+
 // ── MAIN RENDER ───────────────────────────────────────────────
 export function render(state) {
   const el = document.getElementById('page-budgets');
   const cur = App.currency();
-  const { budgets } = state;
+  const { budgets, categories } = state;
   const period = App.cyclePeriod();
   const periodsN = parseInt(el.dataset.periods || '1');
+  const budgetView = el.dataset.budgetView || 'sub'; // sub | group | nature
+
+  // Group budgets by view
+  const grouped = groupBudgets(budgets, categories, budgetView);
 
   el.innerHTML = `
     <div class="page-header">
@@ -28,8 +34,14 @@ export function render(state) {
     </div>
 
     <div class="section" style="padding-bottom:0">
-      <div class="flex gap-2 items-center">
-        <span class="text-sm text-muted">Show:</span>
+      <div class="flex gap-2 items-center" style="flex-wrap:wrap">
+        <span class="text-sm text-muted">View:</span>
+        <div class="toggle-group">
+          <button class="toggle-group-btn budget-view-btn${budgetView==='sub'?' active':''}" data-view="sub">Subcategory</button>
+          <button class="toggle-group-btn budget-view-btn${budgetView==='group'?' active':''}" data-view="group">Group</button>
+          <button class="toggle-group-btn budget-view-btn${budgetView==='nature'?' active':''}" data-view="nature">Nature</button>
+        </div>
+        <span class="text-sm text-muted" style="margin-left:.5rem">Periods:</span>
         <div class="toggle-group">
           ${[1,3,6,12].map(n => `<button class="toggle-group-btn budget-periods-btn${periodsN===n?' active':''}" data-n="${n}">${n} period${n>1?'s':''}</button>`).join('')}
         </div>
@@ -39,18 +51,39 @@ export function render(state) {
     ${!budgets.length ? `<div class="empty-state" style="margin-top:2rem">
       <div style="font-size:2rem">◎</div>
       <p>No budgets yet. Add one to start tracking spending limits.</p>
-    </div>` : `<div class="section">
-      <div class="stat-grid" style="grid-template-columns:repeat(${Math.min(budgets.length, 3)},1fr)">
-        ${budgets.map(b => renderBudgetCard(b, state, period, cur, periodsN)).join('')}
+    </div>` : Object.entries(grouped).map(([groupName, groupBudgets]) => `
+      ${Object.keys(grouped).length > 1 ? `<div class="section" style="padding-bottom:0">
+        <div class="section-header"><div class="section-title">${escHtml(groupName)}</div></div>
+      </div>` : ''}
+      <div class="section" style="padding-top:${Object.keys(grouped).length > 1 ? '.25rem' : ''}">
+        <div class="stat-grid" style="grid-template-columns:repeat(${Math.min(groupBudgets.length, 3)},1fr)">
+          ${groupBudgets.map(b => renderBudgetCard(b, state, period, cur, periodsN)).join('')}
+        </div>
+      </div>`).join('')}
+
+    ${budgets.length ? `<div class="section">
+      <div class="section-header">
+        <div class="section-title">Over Time</div>
+        <div class="text-sm text-muted">Actual vs limit — last 6 periods</div>
       </div>
-    </div>`}
+      <div class="card" style="position:relative;height:260px">
+        <canvas id="budget-overtime-canvas"></canvas>
+      </div>
+    </div>` : ''}
   `;
 
   document.getElementById('budget-add-btn')?.addEventListener('click', () => openBudgetModal(state));
 
+  el.querySelectorAll('.budget-view-btn').forEach(btn => {
+    btn.addEventListener('click', () => { el.dataset.budgetView = btn.dataset.view; render(state); });
+  });
   el.querySelectorAll('.budget-periods-btn').forEach(btn => {
     btn.addEventListener('click', () => { el.dataset.periods = btn.dataset.n; render(state); });
   });
+
+  if (budgets.length) {
+    setTimeout(() => drawOvertimeChart(state, cur), 50);
+  }
   el.querySelectorAll('.budget-edit-btn').forEach(btn => {
     btn.addEventListener('click', () => {
       const b = state.budgets.find(x => x.id === btn.dataset.id);
@@ -140,6 +173,85 @@ function renderBudgetCard(budget, state, period, cur, periodsN) {
         : `${fmtCurrency(effectiveLimit - totalSpend, cur)} remaining`}
     </div>
   </div>`;
+}
+
+// ── GROUP BUDGETS ─────────────────────────────────────────────
+function groupBudgets(budgets, categories, view) {
+  if (view === 'sub') return { '': budgets };
+  const result = {};
+  for (const b of budgets) {
+    const cat = categories.find(c => c.id === b.category_id);
+    let key;
+    if (view === 'nature') {
+      key = cat?.nature || 'Other';
+    } else { // group
+      const parent = cat?.parent_id ? categories.find(c => c.id === cat.parent_id) : cat;
+      key = parent ? (parent.icon || '') + ' ' + parent.name : 'Other';
+    }
+    if (!result[key]) result[key] = [];
+    result[key].push(b);
+  }
+  return result;
+}
+
+// ── OVER TIME CHART ───────────────────────────────────────────
+function drawOvertimeChart(state, cur) {
+  const canvas = document.getElementById('budget-overtime-canvas');
+  if (!canvas || !window.Chart) return;
+  if (overtimeChart) { overtimeChart.destroy(); overtimeChart = null; }
+
+  const { budgets, transactions, categories } = state;
+  const pa = state.profiles[0]?.preferences?.salary_day;
+  const pb = state.profiles[1]?.preferences?.salary_day;
+  const periods = getPeriods(App.cycleMode(), { salary_day_a: pa, salary_day_b: pb }, 6);
+  const labels = periods.map(p => p.label);
+
+  // Palette for multiple budgets
+  const palette = ['#22c55e','#3b82f6','#f59e0b','#ef4444','#a855f7','#06b6d4','#ec4899','#84cc16'];
+  const datasets = [];
+
+  budgets.forEach((b, i) => {
+    const cat = categories.find(c => c.id === b.category_id);
+    const color = palette[i % palette.length];
+    const actualData = periods.map(p => calcPeriodSpend(transactions, b.category_id, p));
+    const limitData = periods.map(p => Number(b.amount) * periodMultiplier(b.period_type, 1));
+
+    datasets.push({
+      label: cat ? (cat.icon || '') + ' ' + cat.name + ' (actual)' : 'Budget ' + (i+1),
+      data: actualData,
+      borderColor: color,
+      backgroundColor: color + '22',
+      fill: false,
+      tension: 0.2,
+    });
+    datasets.push({
+      label: cat ? (cat.icon || '') + ' ' + cat.name + ' (limit)' : 'Limit ' + (i+1),
+      data: limitData,
+      borderColor: color,
+      backgroundColor: 'transparent',
+      borderDash: [5,3],
+      fill: false,
+      tension: 0,
+      pointRadius: 0,
+    });
+  });
+
+  overtimeChart = new Chart(canvas, {
+    type: 'line',
+    data: { labels, datasets },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: { legend: { position: 'bottom', labels: { boxWidth: 12, padding: 8, font: { size: 11 } } } },
+      scales: {
+        x: { grid: { color: 'rgba(0,0,0,.06)' }, ticks: { font: { size: 11 } } },
+        y: {
+          grid: { color: 'rgba(0,0,0,.06)' },
+          ticks: { font: { size: 11 }, callback: v => fmtCurrency(v, App.currency()) },
+        },
+      },
+    },
+  });
 }
 
 function calcPeriodSpend(transactions, categoryId, period) {
