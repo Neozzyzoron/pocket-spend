@@ -756,6 +756,8 @@ function openCategoryModal(state, cat = null, parentGroup = null) {
   const isEdit = !!cat;
   const isSub = !!parentGroup || !!(cat?.parent_id);
   const parent = parentGroup || (cat?.parent_id ? state.categories.find(c => c.id === cat.parent_id) : null);
+  // Pre-fill new subcategory with parent's data so user only needs to change the name
+  if (!isEdit && parent) cat = { icon: parent.icon, color: parent.color, nature: parent.nature, spend_type: parent.spend_type, default_tx_type: parent.default_tx_type };
 
   const NATURES = ['Essentials', 'Variables', 'Income', 'Savings', 'Investments', 'Debt'];
   const SPEND_TYPES = ['Fixed', 'Variable', 'One-time'];
