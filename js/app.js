@@ -643,23 +643,20 @@ async function init() {
     });
   });
 
-  // Auth state listener
+  // Auth state listener — handles all session events
   supabase.auth.onAuthStateChange(async (event, session) => {
     console.log('[auth] event:', event, 'user:', session?.user?.email);
-    if (event === 'SIGNED_IN' && session?.user) {
-      if (isSigningUp) return; // signup flow handles boot manually
-      await boot(session.user);
+    if (['SIGNED_IN', 'INITIAL_SESSION', 'TOKEN_REFRESHED'].includes(event)) {
+      if (session?.user) {
+        if (isSigningUp) return; // signup flow handles boot manually
+        await boot(session.user);
+      } else if (event === 'INITIAL_SESSION') {
+        // No session on startup — show login
+        showAuthScreen();
+      }
     }
     // SIGNED_OUT is ignored here — explicit signOut() does location.reload()
   });
-
-  // Check existing session
-  const { data: { session } } = await supabase.auth.getSession();
-  if (session?.user) {
-    await boot(session.user);
-  } else {
-    showAuthScreen();
-  }
 }
 
 function switchHouseholdChoice(choice) {
