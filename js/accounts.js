@@ -158,6 +158,22 @@ function renderAccountCard(a, state, cur) {
 function openAccountModal(state, acc = null) {
   const isEdit = !!acc;
   const et = acc ? effectiveType(acc) : '';
+  const savedTypes = state.customAccountTypes || [];
+
+  // For edit: find matching saved type by label
+  const matchedSaved = acc?.type === 'custom'
+    ? savedTypes.find(t => t.label === acc.custom_type) : null;
+
+  const baseTypeOptions = (sel) => ['checking','savings','investment','credit','loan','cash']
+    .map(bt => `<option value="${bt}"${sel===bt?' selected':''}>${bt}</option>`).join('');
+
+  const savedTypeOptions = savedTypes.map(t =>
+    `<option value="${t.id}" data-label="${escHtml(t.label)}" data-base="${t.base_type}"
+      ${matchedSaved?.id === t.id ? ' selected' : ''}>${escHtml(t.label)} (${t.base_type})</option>`
+  ).join('');
+
+  // Show new-type inputs if no saved match (or no saved types at all)
+  const showNew = !matchedSaved;
 
   const html = `<form id="acc-form" autocomplete="off">
     <div class="form-group">
@@ -183,22 +199,30 @@ function openAccountModal(state, acc = null) {
       </div>
     </div>
     <div id="af-custom-fields" class="${acc?.type === 'custom' ? '' : 'hidden'}">
-      <div class="form-row">
-        <div class="form-group" style="flex:1">
-          <label class="form-label">Custom label</label>
-          <input class="form-input" id="af-custom-label" value="${escHtml(acc?.custom_type || '')}" placeholder="e.g. Stavební spoření" />
-        </div>
-        <div class="form-group" style="flex:1">
-          <label class="form-label">Behaves as</label>
-          <select class="form-select" id="af-base-type">
-            <option value="checking"${acc?.base_type==='checking'?' selected':''}>Checking</option>
-            <option value="savings"${acc?.base_type==='savings'?' selected':''}>Savings</option>
-            <option value="investment"${acc?.base_type==='investment'?' selected':''}>Investment</option>
-            <option value="credit"${acc?.base_type==='credit'?' selected':''}>Credit</option>
-            <option value="loan"${acc?.base_type==='loan'?' selected':''}>Loan</option>
-            <option value="cash"${acc?.base_type==='cash'?' selected':''}>Cash</option>
+      ${savedTypes.length ? `
+        <div class="form-group">
+          <label class="form-label">Saved custom type</label>
+          <select class="form-select" id="af-custom-select">
+            <option value="">— New custom type —</option>
+            ${savedTypeOptions}
           </select>
+          <div class="form-hint">Select a saved type or create a new one below</div>
         </div>
+      ` : ''}
+      <div id="af-custom-new-row" class="${showNew ? '' : 'hidden'}">
+        <div class="form-row">
+          <div class="form-group" style="flex:1">
+            <label class="form-label">Label</label>
+            <input class="form-input" id="af-custom-label" value="${escHtml(showNew ? (acc?.custom_type || '') : '')}" placeholder="e.g. Stavební spoření" />
+          </div>
+          <div class="form-group" style="flex:1">
+            <label class="form-label">Behaves as</label>
+            <select class="form-select" id="af-base-type">
+              ${baseTypeOptions(showNew ? acc?.base_type : '')}
+            </select>
+          </div>
+        </div>
+        <div class="form-hint">New types are saved automatically for future accounts</div>
       </div>
     </div>
     <div class="form-row">
@@ -226,24 +250,64 @@ function openAccountModal(state, acc = null) {
     document.getElementById('af-custom-fields').classList.toggle('hidden', e.target.value !== 'custom');
   });
 
+  document.getElementById('af-custom-select')?.addEventListener('change', e => {
+    const sel = e.target;
+    const opt = sel.options[sel.selectedIndex];
+    const newRow = document.getElementById('af-custom-new-row');
+    if (sel.value) {
+      document.getElementById('af-custom-label').value = opt.dataset.label || '';
+      document.getElementById('af-base-type').value    = opt.dataset.base  || '';
+      newRow.classList.add('hidden');
+    } else {
+      document.getElementById('af-custom-label').value = '';
+      newRow.classList.remove('hidden');
+    }
+  });
+
   document.getElementById('acc-form')?.addEventListener('submit', async e => {
     e.preventDefault();
     const errEl = document.getElementById('af-error');
     errEl.classList.add('hidden');
 
-    const name = document.getElementById('af-name')?.value.trim();
-    const type = document.getElementById('af-type')?.value;
-    const color = document.getElementById('af-color')?.value;
+    const name    = document.getElementById('af-name')?.value.trim();
+    const type    = document.getElementById('af-type')?.value;
+    const color   = document.getElementById('af-color')?.value;
     const opening_balance = parseFloat(document.getElementById('af-opening')?.value) || 0;
-    const expected_rate = parseFloat(document.getElementById('af-rate')?.value) || null;
-    const custom_type = document.getElementById('af-custom-label')?.value.trim() || null;
-    const base_type = document.getElementById('af-base-type')?.value || null;
+    const expected_rate   = parseFloat(document.getElementById('af-rate')?.value) || null;
 
     if (!name) { errEl.textContent = 'Name is required'; errEl.classList.remove('hidden'); return; }
 
+    let custom_type = null, base_type = null;
+    if (type === 'custom') {
+      const selectEl = document.getElementById('af-custom-select');
+      if (selectEl?.value) {
+        // Using a saved type
+        const opt = selectEl.options[selectEl.selectedIndex];
+        custom_type = opt.dataset.label || null;
+        base_type   = opt.dataset.base  || null;
+      } else {
+        // New type from inputs
+        custom_type = document.getElementById('af-custom-label')?.value.trim() || null;
+        base_type   = document.getElementById('af-base-type')?.value || null;
+        // Auto-save new type for future reuse
+        if (custom_type && base_type) {
+          const alreadySaved = (state.customAccountTypes || []).some(t => t.label === custom_type);
+          if (!alreadySaved) {
+            const { data: newType } = await App.supabase.from('custom_account_types')
+              .insert({ household_id: App.state.household.id, label: custom_type, base_type })
+              .select().single();
+            if (newType) {
+              state.customAccountTypes = [...(state.customAccountTypes || []), newType]
+                .sort((a, b) => a.label.localeCompare(b.label));
+            }
+          }
+        }
+      }
+    }
+
     const payload = { name, type, color, opening_balance, expected_rate,
                       custom_type: type === 'custom' ? custom_type : null,
-                      base_type: type === 'custom' ? base_type : null,
+                      base_type:   type === 'custom' ? base_type   : null,
                       household_id: App.state.household.id };
 
     if (isEdit) {

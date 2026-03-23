@@ -237,6 +237,7 @@ async function loadAllData() {
     { data: snapshots },
     { data: allProfiles },
     { data: settings },
+    { data: customAccountTypes },
   ] = await Promise.all([
     supabase.from('accounts').select('*').eq('household_id', hid).order('created_at'),
     supabase.from('categories').select('*').eq('household_id', hid).order('sort_order'),
@@ -246,17 +247,19 @@ async function loadAllData() {
     supabase.from('budget_snapshots').select('*').eq('household_id', hid).order('period_start', { ascending: false }),
     supabase.from('profiles').select('*').eq('household_id', hid),
     supabase.from('household_settings').select('*').eq('household_id', hid).single(),
+    supabase.from('custom_account_types').select('*').eq('household_id', hid).order('label'),
   ]);
 
-  state.accounts          = accounts || [];
-  state.categories        = categories || [];
-  state.transactions      = transactions || [];
-  state.recurringTemplates = templates || [];
-  state.budgets           = budgets || [];
-  state.budgetSnapshots   = snapshots || [];
-  state.profiles          = (allProfiles || []).sort((a, b) => a.id.localeCompare(b.id));
-  state.settings          = settings || { theme: {}, account_order: [] };
-  state.accountOrder      = state.settings.account_order || [];
+  state.accounts            = accounts || [];
+  state.categories          = categories || [];
+  state.transactions        = transactions || [];
+  state.recurringTemplates  = templates || [];
+  state.budgets             = budgets || [];
+  state.budgetSnapshots     = snapshots || [];
+  state.profiles            = (allProfiles || []).sort((a, b) => a.id.localeCompare(b.id));
+  state.settings            = settings || { theme: {}, account_order: [] };
+  state.accountOrder        = state.settings.account_order || [];
+  state.customAccountTypes  = customAccountTypes || [];
 
   // Apply theme — also cache in localStorage for instant apply on next page load
   applyTheme(state.settings.theme);
