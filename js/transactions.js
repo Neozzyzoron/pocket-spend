@@ -422,12 +422,17 @@ function renderMobileCard(tx, state, cur) {
 
 // ── INLINE EDIT ROW ───────────────────────────────────────────
 function renderInlineEditRow(tx, state, cur, cols = DEFAULT_COLUMNS) {
-  const { categories, accounts } = state;
+  const { categories, accounts, profiles } = state;
   const needsCategory = !['transfer','adjustment'].includes(tx.type);
   const catOpts = buildCategoryOptions(categories, tx.category_id);
   const accOpts = buildAccountOptions(accounts, state.accountOrder, null, tx.account_id);
   const toAccOpts = buildAccountOptions(accounts, state.accountOrder, null, tx.to_account_id);
   const hasTwoAccounts = ['savings','investment','transfer','withdrawal','debt_payment'].includes(tx.type);
+
+  // Always show core fields; additionally show any visible optional columns
+  const showPerson  = cols.includes('person');
+  const showNotes   = cols.includes('notes');
+  const showStatus  = cols.includes('status');
 
   return `<tr class="tx-inline-edit" data-id="${tx.id}">
     <td></td>
@@ -442,10 +447,14 @@ function renderInlineEditRow(tx, state, cur, cols = DEFAULT_COLUMNS) {
         <select class="form-select" id="ie-acc" style="width:140px">${accOpts}</select>
         ${hasTwoAccounts ? `<select class="form-select" id="ie-to-acc" style="width:140px">${toAccOpts}</select>` : ''}
         <input class="form-input text-mono" type="number" id="ie-amt" value="${tx.amount}" step="0.01" style="width:100px;text-align:right" />
-        <select class="form-select" id="ie-status" style="width:110px">
+        ${showPerson ? `<select class="form-select" id="ie-person" style="width:130px" title="Person">
+          ${profiles.map(p => `<option value="${p.id}"${tx.user_id===p.id?' selected':''}>${escHtml(p.display_name)}</option>`).join('')}
+        </select>` : ''}
+        ${showStatus ? `<select class="form-select" id="ie-status" style="width:110px">
           <option value="confirmed"${tx.status==='confirmed'?' selected':''}>Confirmed</option>
           <option value="pending"${tx.status==='pending'?' selected':''}>Pending</option>
-        </select>
+        </select>` : ''}
+        ${showNotes ? `<input class="form-input" id="ie-notes" value="${escHtml(tx.notes || '')}" placeholder="Notes" style="width:160px" />` : ''}
       </div>
     </td>
     <td>
@@ -472,14 +481,16 @@ function expandInlineEdit(tx, state, cur) {
     const account_id = document.getElementById('ie-acc')?.value || null;
     const to_account_id = document.getElementById('ie-to-acc')?.value || null;
     const amount = parseFloat(document.getElementById('ie-amt')?.value);
-    const status = document.getElementById('ie-status')?.value;
+    const user_id = document.getElementById('ie-person')?.value || tx.user_id;
+    const status = document.getElementById('ie-status')?.value || tx.status;
+    const notes = document.getElementById('ie-notes')?.value.trim() || null;
 
     if (!date || !description || isNaN(amount) || amount <= 0) {
       App.toast('Please fill in required fields', 'error');
       return;
     }
 
-    const updates = { date, description, category_id, type, account_id, to_account_id, amount, status };
+    const updates = { date, description, category_id, type, account_id, to_account_id, amount, user_id, status, notes };
     const { error } = await App.supabase
       .from('transactions').update(updates)
       .eq('id', tx.id).eq('household_id', App.state.household.id);

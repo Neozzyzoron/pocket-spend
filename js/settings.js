@@ -622,7 +622,14 @@ function renderAccountsSection(state) {
             <th>Name</th><th>Type</th><th class="amount-col">Balance</th><th>Status</th><th style="width:120px"></th>
           </tr></thead>
           <tbody id="settings-acc-tbody">
-            ${accounts.map(a => {
+            ${[...accounts].sort((a, b) => {
+              const ia = state.accountOrder.indexOf(a.id);
+              const ib = state.accountOrder.indexOf(b.id);
+              if (ia === -1 && ib === -1) return 0;
+              if (ia === -1) return 1;
+              if (ib === -1) return -1;
+              return ia - ib;
+            }).map(a => {
               const bal = calcAccountBalance(a, transactions);
               const et = effectiveType(a);
               return `<tr data-id="${a.id}" class="${a.is_archived ? 'text-muted' : ''}">
