@@ -219,6 +219,23 @@
     </div>
   </div>
 
-  <script type="module" src="./js/app.js"></script>
+  <!-- importmap versions ALL modules so stale browser caches are busted on each deploy -->
+  <script type="importmap">
+  {
+    "imports": {
+      "./js/app.js":          "./js/app.js?v=20260323b",
+      "./js/utils.js":        "./js/utils.js?v=20260323b",
+      "./js/dashboard.js":    "./js/dashboard.js?v=20260323b",
+      "./js/transactions.js": "./js/transactions.js?v=20260323b",
+      "./js/accounts.js":     "./js/accounts.js?v=20260323b",
+      "./js/budgets.js":      "./js/budgets.js?v=20260323b",
+      "./js/analytics.js":    "./js/analytics.js?v=20260323b",
+      "./js/forecast.js":     "./js/forecast.js?v=20260323b",
+      "./js/recurring.js":    "./js/recurring.js?v=20260323b",
+      "./js/settings.js":     "./js/settings.js?v=20260323b"
+    }
+  }
+  </script>
+  <script type="module" src="./js/app.js?v=20260323b"></script>
 </body>
 </html>

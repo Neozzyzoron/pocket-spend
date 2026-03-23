@@ -658,25 +658,41 @@ async function init() {
     });
   });
 
-  // ── Auth: check for an existing session on every page load/refresh.
-  // getSession() reads from localStorage and auto-refreshes expired tokens.
-  // This is simpler and more reliable than parsing onAuthStateChange events.
-  const { data: { session } } = await supabase.auth.getSession();
-  if (session?.user) {
-    await boot(session.user);
-  } else {
-    showAuthScreen();
-  }
+  // ── Auth: INITIAL_SESSION fires immediately from localStorage — no network needed.
+  // This is fast even on slow connections. For expired tokens the Supabase client
+  // auto-refreshes transparently during the first API call inside boot().
+  // TOKEN_REFRESHED is intentionally ignored — it fires every ~50 min and must
+  // not trigger a re-boot mid-session (which could show the auth screen on failure).
 
-  // ── Auth: listen only for explicit sign-in (login button) and sign-out.
-  // TOKEN_REFRESHED and INITIAL_SESSION are handled transparently by the Supabase client.
+  // Safety net: if INITIAL_SESSION never fires within 8s, fall back to getSession().
+  const authSafety = setTimeout(async () => {
+    if (booted || bootInProgress) return;
+    console.warn('[auth] INITIAL_SESSION never fired — falling back to getSession()');
+    const { data: { session } } = await supabase.auth.getSession();
+    if (session?.user && !bootInProgress) await boot(session.user);
+    else if (!session?.user) showAuthScreen();
+  }, 8000);
+
   supabase.auth.onAuthStateChange(async (event, session) => {
-    if (event === 'SIGNED_IN' && !booted && !isSigningUp) {
+    if (event === 'INITIAL_SESSION') {
+      clearTimeout(authSafety);
+      if (session?.user && !isSigningUp) {
+        await boot(session.user);
+      } else if (!session?.user) {
+        showAuthScreen();
+      }
+      // user + isSigningUp: signup flow calls boot() directly once DB setup is done
+
+    } else if (event === 'SIGNED_IN' && !booted && !isSigningUp) {
+      clearTimeout(authSafety);
       await boot(session.user);
+
     } else if (event === 'SIGNED_OUT') {
+      clearTimeout(authSafety);
       booted = false;
       if (!bootInProgress) showAuthScreen();
     }
+    // TOKEN_REFRESHED: deliberately ignored
   });
 }
 
