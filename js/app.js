@@ -248,15 +248,21 @@ async function loadAllData() {
     supabase.from('household_settings').select('*').eq('household_id', hid).single(),
   ]);
 
-  state.accounts          = accounts || [];
-  state.categories        = categories || [];
-  state.transactions      = transactions || [];
-  state.recurringTemplates = templates || [];
-  state.budgets           = budgets || [];
-  state.budgetSnapshots   = snapshots || [];
-  state.profiles          = (allProfiles || []).sort((a, b) => a.id.localeCompare(b.id));
-  state.settings          = settings || { theme: {}, account_order: [] };
-  state.accountOrder      = state.settings.account_order || [];
+  // Load custom account types separately so a missing table never breaks the main load
+  const { data: customAccountTypes } = await supabase
+    .from('custom_account_types').select('*').eq('household_id', hid).order('label')
+    .catch(() => ({ data: [] }));
+
+  state.accounts            = accounts || [];
+  state.categories          = categories || [];
+  state.transactions        = transactions || [];
+  state.recurringTemplates  = templates || [];
+  state.budgets             = budgets || [];
+  state.budgetSnapshots     = snapshots || [];
+  state.profiles            = (allProfiles || []).sort((a, b) => a.id.localeCompare(b.id));
+  state.settings            = settings || { theme: {}, account_order: [] };
+  state.accountOrder        = state.settings.account_order || [];
+  state.customAccountTypes  = customAccountTypes || [];
 
   // Apply theme — also cache in localStorage for instant apply on next page load
   applyTheme(state.settings.theme);
