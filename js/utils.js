@@ -359,6 +359,20 @@ export function applyTheme(theme) {
   root.style.setProperty('--accent-l',   mix(bg, accent, dark ? 0.22 : 0.28));
   root.style.setProperty('--shadow',     `0 2px 8px rgba(${dark?'0,0,0,.35':'0,0,0,.10'})`);
   root.style.setProperty('--shadow-lg',  `0 8px 32px rgba(${dark?'0,0,0,.5':'0,0,0,.18'})`);
+
+  // Status colors — lightened one stop on dark backgrounds for legibility
+  root.style.setProperty('--green',  dark ? '#4ade80' : '#22c55e');
+  root.style.setProperty('--red',    dark ? '#f87171' : '#ef4444');
+  root.style.setProperty('--amber',  dark ? '#fbbf24' : '#f59e0b');
+  root.style.setProperty('--blue',   dark ? '#60a5fa' : '#3b82f6');
+  root.style.setProperty('--purple', dark ? '#c084fc' : '#a855f7');
+  root.style.setProperty('--cyan',   dark ? '#22d3ee' : '#06b6d4');
+  root.style.setProperty('--violet', dark ? '#c4b5fd' : '#a78bfa');
+}
+
+/** Read a CSS custom property value from the document root at call time */
+export function getCSSColor(varName) {
+  return getComputedStyle(document.documentElement).getPropertyValue(varName).trim();
 }
 
 /** Compute account balance from opening_balance + transactions */
