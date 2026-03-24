@@ -6,7 +6,7 @@
 import {
   fmtCurrency, fmtPct, escHtml, parseISO, toISO, isEffective,
   effectiveType, calcAccountBalance, isLiquid, getPeriods,
-  buildCategoryTree,
+  buildCategoryTree, getCSSColor,
 } from './utils.js';
 
 let timelineChart = null;
@@ -474,8 +474,15 @@ function drawTimelineChart(projections, periods, currentPeriod, cur, state) {
   // Running balance line
   const runningBalance = state ? computeRunningBalance(projections, state) : projections.map(() => null);
 
-  const hatchGreen = makeHatchPattern('#22c55e');
-  const hatchRed   = makeHatchPattern('#ef4444');
+  const green  = getCSSColor('--green');
+  const red    = getCSSColor('--red');
+  const violet = getCSSColor('--violet');
+  const amber  = getCSSColor('--amber');
+  const text3  = getCSSColor('--text3');
+  const border = getCSSColor('--border') + '60';
+
+  const hatchGreen = makeHatchPattern(green);
+  const hatchRed   = makeHatchPattern(red);
 
   // Inline plugin: vertical "Today" divider inside current period bar
   const todayDividerPlugin = {
@@ -494,7 +501,7 @@ function drawTimelineChart(projections, periods, currentPeriod, cur, state) {
       const xToday = xCenter - barWidth / 2 + progress * barWidth;
 
       ctx.save();
-      ctx.strokeStyle = 'rgba(251,191,36,0.75)';
+      ctx.strokeStyle = amber + 'bf';
       ctx.lineWidth = 1.5;
       ctx.setLineDash([4, 4]);
       ctx.beginPath();
@@ -502,7 +509,7 @@ function drawTimelineChart(projections, periods, currentPeriod, cur, state) {
       ctx.lineTo(xToday, chartArea.bottom);
       ctx.stroke();
       ctx.setLineDash([]);
-      ctx.fillStyle = 'rgba(251,191,36,0.85)';
+      ctx.fillStyle = amber + 'd9';
       ctx.font = '11px DM Sans, sans-serif';
       ctx.textAlign = 'left';
       ctx.fillText('Today', xToday + 4, chartArea.top + 14);
@@ -520,7 +527,7 @@ function drawTimelineChart(projections, periods, currentPeriod, cur, state) {
         {
           label: 'Income',
           data: incomeActual,
-          backgroundColor: '#22c55e99',
+          backgroundColor: green + '99',
           stack: 'income',
           yAxisID: 'y',
         },
@@ -528,7 +535,7 @@ function drawTimelineChart(projections, periods, currentPeriod, cur, state) {
           label: 'Income (projected)',
           data: incomeProj,
           backgroundColor: hatchGreen,
-          borderColor: '#22c55e',
+          borderColor: green,
           borderWidth: 1,
           stack: 'income',
           yAxisID: 'y',
@@ -536,7 +543,7 @@ function drawTimelineChart(projections, periods, currentPeriod, cur, state) {
         {
           label: 'Spending',
           data: spendActual,
-          backgroundColor: '#ef444499',
+          backgroundColor: red + '99',
           stack: 'spend',
           yAxisID: 'y',
         },
@@ -544,7 +551,7 @@ function drawTimelineChart(projections, periods, currentPeriod, cur, state) {
           label: 'Spending (projected)',
           data: spendProj,
           backgroundColor: hatchRed,
-          borderColor: '#ef4444',
+          borderColor: red,
           borderWidth: 1,
           stack: 'spend',
           yAxisID: 'y',
@@ -554,8 +561,8 @@ function drawTimelineChart(projections, periods, currentPeriod, cur, state) {
           data: runningBalance,
           type: 'line',
           yAxisID: 'y2',
-          borderColor: '#a78bfa',
-          backgroundColor: '#a78bfa22',
+          borderColor: violet,
+          backgroundColor: violet + '22',
           borderWidth: 2,
           pointRadius: 3,
           pointHoverRadius: 5,
@@ -569,7 +576,7 @@ function drawTimelineChart(projections, periods, currentPeriod, cur, state) {
       responsive: true,
       maintainAspectRatio: false,
       plugins: {
-        legend: { labels: { color: '#8b90a8', font: { family: 'DM Sans, sans-serif' } } },
+        legend: { labels: { color: text3, font: { family: 'DM Sans, sans-serif' } } },
         tooltip: {
           callbacks: {
             label: ctx => ctx.raw != null ? ` ${fmtCurrency(ctx.raw, cur)}` : '',
@@ -579,17 +586,17 @@ function drawTimelineChart(projections, periods, currentPeriod, cur, state) {
       scales: {
         x: {
           stacked: true,
-          ticks: { color: '#8b90a8' },
-          grid: { color: '#2a2e3f40' },
+          ticks: { color: text3 },
+          grid: { color: border },
         },
         y: {
           stacked: true,
-          ticks: { color: '#8b90a8', callback: v => fmtCurrency(v, cur) },
-          grid: { color: '#2a2e3f40' },
+          ticks: { color: text3, callback: v => fmtCurrency(v, cur) },
+          grid: { color: border },
         },
         y2: {
           position: 'right',
-          ticks: { color: '#a78bfa', callback: v => fmtCurrency(v, cur) },
+          ticks: { color: violet, callback: v => fmtCurrency(v, cur) },
           grid: { drawOnChartArea: false },
         },
       },

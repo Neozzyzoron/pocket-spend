@@ -5,7 +5,7 @@
 
 import {
   fmtCurrency, fmtPct, escHtml, parseISO, isEffective,
-  effectiveType, calcAccountBalance, getPeriods, isLiquid,
+  effectiveType, calcAccountBalance, getPeriods, isLiquid, getCSSColor,
 } from './utils.js';
 
 let cfChart = null, nwChart = null, personChart = null, totChart = null, budPerfChart = null;
@@ -169,10 +169,10 @@ function drawCashflowChart(allTx, periods, cur) {
 
   const labels = periods.map(p => p.label);
   const datasets = [
-    { label: 'Income',   color: '#22c55e99', type: 'income' },
-    { label: 'Spending', color: '#ef444499', type: 'spend' },
-    { label: 'Saved',    color: '#3b82f699', type: 'savings' },
-    { label: 'Invested', color: '#a855f799', type: 'investment' },
+    { label: 'Income',   color: getCSSColor('--green')  + '99', type: 'income' },
+    { label: 'Spending', color: getCSSColor('--red')    + '99', type: 'spend' },
+    { label: 'Saved',    color: getCSSColor('--blue')   + '99', type: 'savings' },
+    { label: 'Invested', color: getCSSColor('--purple') + '99', type: 'investment' },
   ].map(({ label, color, type }) => ({
     label,
     backgroundColor: color,
@@ -217,8 +217,8 @@ function drawNetWorthChart(state, periods, cur) {
     data: {
       labels: periods.map(p => p.label),
       datasets: [
-        { label: 'Net Worth', data: netWorthData, borderColor: '#22c55e', backgroundColor: '#22c55e22', tension: 0.3, fill: true },
-        { label: 'Liquid Balance', data: liquidData, borderColor: '#3b82f6', backgroundColor: 'transparent', tension: 0.3, borderDash: [5,5] },
+        { label: 'Net Worth',     data: netWorthData, borderColor: getCSSColor('--green'), backgroundColor: getCSSColor('--green') + '22', tension: 0.3, fill: true },
+        { label: 'Liquid Balance', data: liquidData,   borderColor: getCSSColor('--blue'),  backgroundColor: 'transparent', tension: 0.3, borderDash: [5,5] },
       ],
     },
     options: { ...chartOptions(cur), plugins: { ...chartOptions(cur).plugins } },
@@ -230,7 +230,12 @@ function drawPersonChart(allTx, periods, profiles, cur) {
   const canvas = document.getElementById('analytics-person-canvas');
   if (!canvas || !window.Chart) return;
 
-  const colors = ['#22c55e99', '#3b82f699', '#a855f799', '#ef444499'];
+  const colors = [
+    getCSSColor('--green')  + '99',
+    getCSSColor('--blue')   + '99',
+    getCSSColor('--purple') + '99',
+    getCSSColor('--red')    + '99',
+  ];
   const datasets = profiles.map((p, i) => ({
     label: p.display_name,
     backgroundColor: colors[i] || '#8b90a899',
@@ -297,12 +302,12 @@ function drawTotalsChart(allTx, periods, cur) {
 
   const labels = periods.map(p => p.label);
   const metrics = [
-    { label: 'Income',        type: 'income',       color: '#22c55e' },
-    { label: 'Spending',      type: 'spend',         color: '#ef4444' },
-    { label: 'Saved',         type: 'savings',       color: '#3b82f6' },
-    { label: 'Invested',      type: 'investment',    color: '#a855f7' },
-    { label: 'Withdrawn',     type: 'withdrawal',    color: '#f59e0b' },
-    { label: 'Debt Payments', type: 'debt_payment',  color: '#06b6d4' },
+    { label: 'Income',        type: 'income',       color: getCSSColor('--green')  },
+    { label: 'Spending',      type: 'spend',        color: getCSSColor('--red')    },
+    { label: 'Saved',         type: 'savings',      color: getCSSColor('--blue')   },
+    { label: 'Invested',      type: 'investment',   color: getCSSColor('--purple') },
+    { label: 'Withdrawn',     type: 'withdrawal',   color: getCSSColor('--amber')  },
+    { label: 'Debt Payments', type: 'debt_payment', color: getCSSColor('--cyan')   },
   ];
 
   const datasets = metrics.map(m => ({
@@ -342,7 +347,14 @@ function drawBudgetPerfChart(state, periods, cur) {
 
   const { budgets, categories, transactions } = state;
   const labels = periods.map(p => p.label);
-  const palette = ['#22c55e','#3b82f6','#f59e0b','#ef4444','#a855f7','#06b6d4'];
+  const palette = [
+    getCSSColor('--green'),
+    getCSSColor('--blue'),
+    getCSSColor('--amber'),
+    getCSSColor('--red'),
+    getCSSColor('--purple'),
+    getCSSColor('--cyan'),
+  ];
 
   const datasets = [];
   budgets.forEach((b, i) => {
@@ -383,7 +395,7 @@ function drawBudgetPerfChart(state, periods, cur) {
       ...chartOptions(cur),
       plugins: {
         ...chartOptions(cur).plugins,
-        legend: { position: 'bottom', labels: { boxWidth: 12, padding: 8, font: { size: 11 } } },
+        legend: { position: 'bottom', labels: { color: getCSSColor('--text3'), boxWidth: 12, padding: 8, font: { size: 11 } } },
       },
     },
   });
@@ -391,16 +403,18 @@ function drawBudgetPerfChart(state, periods, cur) {
 
 // ── CHART OPTIONS ─────────────────────────────────────────────
 function chartOptions(cur) {
+  const text3  = getCSSColor('--text3');
+  const border = getCSSColor('--border') + '60';
   return {
     responsive: true,
     maintainAspectRatio: false,
     plugins: {
-      legend: { labels: { color: '#8b90a8', font: { family: 'DM Sans' } } },
+      legend: { labels: { color: text3, font: { family: 'DM Sans' } } },
       tooltip: { callbacks: { label: ctx => ` ${fmtCurrency(ctx.raw, cur)}` } },
     },
     scales: {
-      x: { ticks: { color: '#8b90a8' }, grid: { color: '#2a2e3f40' } },
-      y: { ticks: { color: '#8b90a8', callback: v => fmtCurrency(v, cur) }, grid: { color: '#2a2e3f40' } },
+      x: { ticks: { color: text3 }, grid: { color: border } },
+      y: { ticks: { color: text3, callback: v => fmtCurrency(v, cur) }, grid: { color: border } },
     },
   };
 }

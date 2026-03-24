@@ -10,15 +10,17 @@
   --font: 'DM Sans', sans-serif;
   --font-mono: 'DM Mono', monospace;
 
-  /* Palette — defaults, overridden by household theme */
+  /* Palette — defaults, overridden by applyTheme() for dark mode */
   --green:      #22c55e;
-  --green-l:    #bbf7d0;
   --blue:       #3b82f6;
-  --blue-l:     #bfdbfe;
   --red:        #ef4444;
-  --red-l:      #fee2e2;
   --amber:      #f59e0b;
-  --amber-l:    #fef3c7;
+  --purple:     #a855f7;
+  --cyan:       #06b6d4;
+  --violet:     #a78bfa;
+
+  /* Alias so JS string templates using var(--text-muted) resolve correctly */
+  --text-muted: var(--text2);
 
   /* Surface — light creamy defaults, overridden by applyTheme() */
   --bg:         #faf7f2;
@@ -538,7 +540,7 @@ h3 { font-size: 1rem; font-weight: 600; }
 .badge-spend       { background: color-mix(in srgb, var(--red) 12%, transparent); color: var(--red); }
 .badge-income      { background: color-mix(in srgb, var(--green) 12%, transparent); color: var(--green); }
 .badge-savings     { background: color-mix(in srgb, var(--blue) 12%, transparent); color: var(--blue); }
-.badge-investment  { background: color-mix(in srgb, #a855f7 12%, transparent); color: #a855f7; }
+.badge-investment  { background: color-mix(in srgb, var(--purple) 12%, transparent); color: var(--purple); }
 .badge-transfer    { background: var(--surface2); color: var(--text2); }
 .badge-withdrawal  { background: color-mix(in srgb, var(--amber) 12%, transparent); color: var(--amber); }
 .badge-debt_payment { background: color-mix(in srgb, var(--red) 12%, transparent); color: var(--red); }
