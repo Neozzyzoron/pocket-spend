@@ -12,7 +12,7 @@ import {
 let filters = { search: '', status: 'all', type: '', category: '', account: '', person: '', month: '' };
 let editingId = null;
 let selectedIds = new Set();
-let viewMode = 'flat'; // flat | nature | group | sub | hybrid | spend_type | tx_type
+let viewMode = 'flat'; // flat | nature | group | sub | spend_type | tx_type
 
 const ALL_COLUMNS = [
   { id: 'date',          label: 'Date' },
@@ -69,7 +69,6 @@ export function render(state) {
         <button class="toggle-group-btn tx-view-btn${viewMode==='nature'?' active':''}" data-view="nature">Nature</button>
         <button class="toggle-group-btn tx-view-btn${viewMode==='group'?' active':''}" data-view="group">Group</button>
         <button class="toggle-group-btn tx-view-btn${viewMode==='sub'?' active':''}" data-view="sub">Subcategory</button>
-        <button class="toggle-group-btn tx-view-btn${viewMode==='hybrid'?' active':''}" data-view="hybrid">Hybrid</button>
         <button class="toggle-group-btn tx-view-btn${viewMode==='spend_type'?' active':''}" data-view="spend_type">Spend Type</button>
         <button class="toggle-group-btn tx-view-btn${viewMode==='tx_type'?' active':''}" data-view="tx_type">Transaction Type</button>
       </div>
@@ -384,10 +383,6 @@ function renderGroupedRows(filtered, state, cur, cols, runningBalMap, colSpan) {
       return g ? (g.icon || '') + ' ' + g.name : 'Uncategorised';
     }
     if (viewMode === 'sub') return cat ? (cat.icon || '') + ' ' + cat.name : 'Uncategorised';
-    if (viewMode === 'hybrid') {
-      const g = cat?.parent_id ? categories.find(c => c.id === cat.parent_id) : cat;
-      return g ? (g.icon || '') + ' ' + g.name : 'Uncategorised';
-    }
     if (viewMode === 'spend_type') return cat?.spend_type || 'Uncategorised';
     if (viewMode === 'tx_type') return TX_TYPE_LABELS[tx.type] || tx.type;
     return '';
