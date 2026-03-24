@@ -175,7 +175,7 @@ export function render(state) {
     render(state);
   });
 
-  setTimeout(() => drawTimelineChart(projections, allPeriods, currentPeriod, cur), 50);
+  setTimeout(() => drawTimelineChart(projections, allPeriods, currentPeriod, cur, state), 50);
 }
 
 // ── PERIOD BUILDING ───────────────────────────────────────────
@@ -402,38 +402,196 @@ function renderForecastSummary(projections, periods, currentPeriod, forecastN, s
 }
 
 // ── TIMELINE CHART ────────────────────────────────────────────
-function drawTimelineChart(projections, periods, currentPeriod, cur) {
+function makeHatchPattern(color) {
+  const c = document.createElement('canvas');
+  c.width = 8; c.height = 8;
+  const ctx = c.getContext('2d');
+  ctx.strokeStyle = color;
+  ctx.lineWidth = 1.5;
+  ctx.beginPath(); ctx.moveTo(0, 8); ctx.lineTo(8, 0); ctx.stroke();
+  // wrap-around edges
+  ctx.beginPath(); ctx.moveTo(-1, 1); ctx.lineTo(1, -1); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(7, 9); ctx.lineTo(9, 7); ctx.stroke();
+  return ctx.createPattern(c, 'repeat');
+}
+
+function computeRunningBalance(projections, state) {
+  const liquidBal = state.accounts
+    .filter(a => !a.is_archived && isLiquid(a))
+    .reduce((s, a) => s + calcAccountBalance(a, state.transactions), 0);
+
+  const netOf = d => d.income + (d.withdrawn || 0) - d.spending - (d.saved || 0) - (d.invested || 0) - (d.debt || 0);
+
+  const currentIdx = projections.findIndex(p => p.period.isCurrent);
+  if (currentIdx < 0) return projections.map(() => null);
+
+  const result = new Array(projections.length).fill(null);
+
+  // Balance at end of the period just before the current one
+  // B_now = B_at_end_of_prev + actual_net_current_so_far
+  const balBeforeCurrent = liquidBal - netOf(projections[currentIdx].actual);
+
+  if (currentIdx > 0) result[currentIdx - 1] = balBeforeCurrent;
+  for (let i = currentIdx - 2; i >= 0; i--) {
+    result[i] = result[i + 1] - netOf(projections[i + 1].actual);
+  }
+
+  // Current period end: use projected net (blended actual+projected)
+  const projNetOf = p => netOf((p.period.isFuture || p.period.isCurrent) && p.projected ? p.projected : p.actual);
+  result[currentIdx] = balBeforeCurrent + projNetOf(projections[currentIdx]);
+
+  for (let i = currentIdx + 1; i < projections.length; i++) {
+    result[i] = result[i - 1] + projNetOf(projections[i]);
+  }
+
+  return result;
+}
+
+function drawTimelineChart(projections, periods, currentPeriod, cur, state) {
   const canvas = document.getElementById('fc-timeline-canvas');
   if (!canvas || !window.Chart) return;
 
   const labels = projections.map(p => p.period.label);
-  const actualSpend = projections.map(p => p.actual.spending);
-  const projSpend = projections.map(p => p.period.isFuture ? (p.projected?.spending || 0) : null);
-  const actualIncome = projections.map(p => p.actual.income);
-  const projIncome = projections.map(p => p.period.isFuture ? (p.projected?.income || 0) : null);
+  const currentIdx = projections.findIndex(p => p.period.isCurrent);
+  const today = new Date(); today.setHours(0, 0, 0, 0);
+
+  // Income: solid actual bars stacked with hatched projected remainder
+  const incomeActual   = projections.map(p => p.actual.income);
+  const incomeProj     = projections.map(p => {
+    if (p.period.isCurrent && p.projected) return Math.max(0, p.projected.income - p.actual.income);
+    if (p.period.isFuture  && p.projected) return p.projected.income;
+    return 0;
+  });
+
+  // Spending: same split
+  const spendActual    = projections.map(p => p.actual.spending);
+  const spendProj      = projections.map(p => {
+    if (p.period.isCurrent && p.projected) return Math.max(0, p.projected.spending - p.actual.spending);
+    if (p.period.isFuture  && p.projected) return p.projected.spending;
+    return 0;
+  });
+
+  // Running balance line
+  const runningBalance = state ? computeRunningBalance(projections, state) : projections.map(() => null);
+
+  const hatchGreen = makeHatchPattern('#22c55e');
+  const hatchRed   = makeHatchPattern('#ef4444');
+
+  // Inline plugin: vertical "Today" divider inside current period bar
+  const todayDividerPlugin = {
+    id: 'todayDivider',
+    afterDraw(chart) {
+      if (currentIdx < 0) return;
+      const { ctx, chartArea, scales } = chart;
+      const xCenter = scales.x.getPixelForValue(currentIdx);
+      const barWidth = projections.length > 1
+        ? Math.abs(scales.x.getPixelForValue(1) - scales.x.getPixelForValue(0))
+        : chartArea.width;
+      const cp = projections[currentIdx]?.period;
+      const progress = cp
+        ? Math.min(1, Math.max(0, (today - cp.start) / (cp.end - cp.start)))
+        : 0.5;
+      const xToday = xCenter - barWidth / 2 + progress * barWidth;
+
+      ctx.save();
+      ctx.strokeStyle = 'rgba(251,191,36,0.75)';
+      ctx.lineWidth = 1.5;
+      ctx.setLineDash([4, 4]);
+      ctx.beginPath();
+      ctx.moveTo(xToday, chartArea.top);
+      ctx.lineTo(xToday, chartArea.bottom);
+      ctx.stroke();
+      ctx.setLineDash([]);
+      ctx.fillStyle = 'rgba(251,191,36,0.85)';
+      ctx.font = '11px DM Sans, sans-serif';
+      ctx.textAlign = 'left';
+      ctx.fillText('Today', xToday + 4, chartArea.top + 14);
+      ctx.restore();
+    },
+  };
 
   if (timelineChart) { timelineChart.destroy(); timelineChart = null; }
   timelineChart = new Chart(canvas, {
     type: 'bar',
+    plugins: [todayDividerPlugin],
     data: {
       labels,
       datasets: [
-        { label: 'Income (actual)', data: actualIncome, backgroundColor: '#22c55e99' },
-        { label: 'Income (projected)', data: projIncome, backgroundColor: '#22c55e44', borderColor: '#22c55e', borderWidth: 1, borderDash: [5,5] },
-        { label: 'Spending (actual)', data: actualSpend, backgroundColor: '#ef444499' },
-        { label: 'Spending (projected)', data: projSpend, backgroundColor: '#ef444444', borderColor: '#ef4444', borderWidth: 1 },
+        {
+          label: 'Income',
+          data: incomeActual,
+          backgroundColor: '#22c55e99',
+          stack: 'income',
+          yAxisID: 'y',
+        },
+        {
+          label: 'Income (projected)',
+          data: incomeProj,
+          backgroundColor: hatchGreen,
+          borderColor: '#22c55e',
+          borderWidth: 1,
+          stack: 'income',
+          yAxisID: 'y',
+        },
+        {
+          label: 'Spending',
+          data: spendActual,
+          backgroundColor: '#ef444499',
+          stack: 'spend',
+          yAxisID: 'y',
+        },
+        {
+          label: 'Spending (projected)',
+          data: spendProj,
+          backgroundColor: hatchRed,
+          borderColor: '#ef4444',
+          borderWidth: 1,
+          stack: 'spend',
+          yAxisID: 'y',
+        },
+        {
+          label: 'Liquid Balance',
+          data: runningBalance,
+          type: 'line',
+          yAxisID: 'y2',
+          borderColor: '#a78bfa',
+          backgroundColor: '#a78bfa22',
+          borderWidth: 2,
+          pointRadius: 3,
+          pointHoverRadius: 5,
+          fill: false,
+          tension: 0.3,
+          order: -1,
+        },
       ],
     },
     options: {
       responsive: true,
       maintainAspectRatio: false,
       plugins: {
-        legend: { labels: { color: '#8b90a8', font: { family: 'DM Sans' } } },
-        tooltip: { callbacks: { label: ctx => ` ${fmtCurrency(ctx.raw, cur)}` } },
+        legend: { labels: { color: '#8b90a8', font: { family: 'DM Sans, sans-serif' } } },
+        tooltip: {
+          callbacks: {
+            label: ctx => ctx.raw != null ? ` ${fmtCurrency(ctx.raw, cur)}` : '',
+          },
+        },
       },
       scales: {
-        x: { ticks: { color: '#8b90a8' }, grid: { color: '#2a2e3f40' } },
-        y: { ticks: { color: '#8b90a8', callback: v => fmtCurrency(v, cur) }, grid: { color: '#2a2e3f40' } },
+        x: {
+          stacked: true,
+          ticks: { color: '#8b90a8' },
+          grid: { color: '#2a2e3f40' },
+        },
+        y: {
+          stacked: true,
+          ticks: { color: '#8b90a8', callback: v => fmtCurrency(v, cur) },
+          grid: { color: '#2a2e3f40' },
+        },
+        y2: {
+          position: 'right',
+          ticks: { color: '#a78bfa', callback: v => fmtCurrency(v, cur) },
+          grid: { drawOnChartArea: false },
+        },
       },
     },
   });
