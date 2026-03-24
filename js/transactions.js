@@ -12,7 +12,7 @@ import {
 let filters = { search: '', status: 'all', type: '', category: '', account: '', person: '', month: '' };
 let editingId = null;
 let selectedIds = new Set();
-let viewMode = 'flat'; // flat | nature | group | sub | hybrid
+let viewMode = 'flat'; // flat | nature | group | sub | spend_type | tx_type
 
 const ALL_COLUMNS = [
   { id: 'date',          label: 'Date' },
@@ -69,7 +69,8 @@ export function render(state) {
         <button class="toggle-group-btn tx-view-btn${viewMode==='nature'?' active':''}" data-view="nature">Nature</button>
         <button class="toggle-group-btn tx-view-btn${viewMode==='group'?' active':''}" data-view="group">Group</button>
         <button class="toggle-group-btn tx-view-btn${viewMode==='sub'?' active':''}" data-view="sub">Subcategory</button>
-        <button class="toggle-group-btn tx-view-btn${viewMode==='hybrid'?' active':''}" data-view="hybrid">Hybrid</button>
+        <button class="toggle-group-btn tx-view-btn${viewMode==='spend_type'?' active':''}" data-view="spend_type">Spend Type</button>
+        <button class="toggle-group-btn tx-view-btn${viewMode==='tx_type'?' active':''}" data-view="tx_type">Transaction Type</button>
       </div>
     </div>
 
@@ -112,7 +113,7 @@ export function render(state) {
           ${[...new Set(state.transactions.map(t => t.date.slice(0,7)))].sort().reverse()
               .map(m => `<option value="${m}"${filters.month===m?' selected':''}>${m}</option>`).join('')}
         </select>
-        ${selectedIds.size ? `<button class="btn btn-danger btn-sm" id="tx-bulk-delete">Delete (${selectedIds.size})</button>` : ''}
+        <div id="tx-bulk-actions"></div>
         <button class="btn btn-ghost btn-sm" id="tx-clear-filters">Clear filters</button>
       </div>
     </div>
@@ -143,8 +144,6 @@ export function render(state) {
   el.querySelectorAll('.tx-status-btn').forEach(btn => {
     btn.addEventListener('click', () => { filters.status = btn.dataset.status; render(state); });
   });
-  document.getElementById('tx-bulk-delete')?.addEventListener('click', () => bulkDelete(state));
-
   renderTable(state);
 }
 
@@ -241,6 +240,24 @@ function renderTable(state) {
       <tbody id="tx-tbody">${bodyHtml}</tbody>
     </table>
   </div>`;
+
+  // Update bulk-actions bar
+  const bulkEl = document.getElementById('tx-bulk-actions');
+  if (bulkEl) {
+    bulkEl.innerHTML = selectedIds.size
+      ? `<button class="btn btn-danger btn-sm" id="tx-bulk-delete">Delete (${selectedIds.size})</button>`
+      : '';
+    document.getElementById('tx-bulk-delete')?.addEventListener('click', () => bulkDelete(state));
+  }
+
+  // Set select-all checkbox state
+  const selectAllCb = document.getElementById('tx-select-all');
+  if (selectAllCb) {
+    const allChecked = filtered.length > 0 && filtered.every(tx => selectedIds.has(tx.id));
+    const someChecked = filtered.some(tx => selectedIds.has(tx.id));
+    selectAllCb.checked = allChecked;
+    selectAllCb.indeterminate = someChecked && !allChecked;
+  }
 
   // Wire table events
   document.getElementById('tx-select-all')?.addEventListener('change', e => {
@@ -366,10 +383,8 @@ function renderGroupedRows(filtered, state, cur, cols, runningBalMap, colSpan) {
       return g ? (g.icon || '') + ' ' + g.name : 'Uncategorised';
     }
     if (viewMode === 'sub') return cat ? (cat.icon || '') + ' ' + cat.name : 'Uncategorised';
-    if (viewMode === 'hybrid') {
-      const g = cat?.parent_id ? categories.find(c => c.id === cat.parent_id) : cat;
-      return g ? (g.icon || '') + ' ' + g.name : 'Uncategorised';
-    }
+    if (viewMode === 'spend_type') return cat?.spend_type || 'Uncategorised';
+    if (viewMode === 'tx_type') return TX_TYPE_LABELS[tx.type] || tx.type;
     return '';
   }
 
