@@ -852,7 +852,7 @@ function openCategoryModal(state, cat = null, parentGroup = null) {
   // Pre-fill new subcategory with parent's data so user only needs to change the name
   if (!isEdit && parent) cat = { icon: parent.icon, color: parent.color, nature: parent.nature, spend_type: parent.spend_type, default_tx_type: parent.default_tx_type };
 
-  const NATURES = ['Essentials', 'Variables', 'Income', 'Savings', 'Investments', 'Debt'];
+  const NATURES = ['Essentials', 'Discretionary', 'Income', 'Savings', 'Investments', 'Debt'];
   const SPEND_TYPES = ['Fixed', 'Variable', 'One-time'];
   const TX_TYPES = ['spend','income','savings','investment','transfer','withdrawal','debt_payment','adjustment'];
 
