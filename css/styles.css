@@ -202,6 +202,18 @@ h3 { font-size: 1rem; font-weight: 600; }
 .form-select option { background: var(--surface); }
 .form-textarea { resize: vertical; min-height: 80px; line-height: 1.5; }
 .form-hint { font-size: .78rem; color: var(--text3); margin-top: -.2rem; }
+/* Compact inputs for inline table editing */
+.tx-inline-edit .form-input,
+.tx-inline-edit .form-select {
+  padding: .25rem .45rem;
+  font-size: .82rem;
+  width: 100%;
+}
+.tx-inline-edit .form-select {
+  background-position: right .35rem center;
+  padding-right: 1.35rem;
+}
+.tx-inline-edit td { padding: .3rem .5rem; vertical-align: middle; }
 .form-error { font-size: .82rem; color: var(--red); padding: .5rem .75rem; background: color-mix(in srgb, var(--red) 10%, transparent); border-radius: var(--radius-sm); border: 1px solid color-mix(in srgb, var(--red) 25%, transparent); }
 
 /* Inline row of form inputs */

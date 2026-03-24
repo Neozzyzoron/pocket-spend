@@ -428,35 +428,45 @@ function renderInlineEditRow(tx, state, cur, cols = DEFAULT_COLUMNS) {
   const accOpts = buildAccountOptions(accounts, state.accountOrder, null, tx.account_id);
   const toAccOpts = buildAccountOptions(accounts, state.accountOrder, null, tx.to_account_id);
   const hasTwoAccounts = ['savings','investment','transfer','withdrawal','debt_payment'].includes(tx.type);
+  const cat = categories.find(c => c.id === tx.category_id);
+  const group = cat?.parent_id ? categories.find(c => c.id === cat.parent_id) : cat;
 
-  // Always show core fields; additionally show any visible optional columns
-  const showPerson  = cols.includes('person');
-  const showNotes   = cols.includes('notes');
-  const showStatus  = cols.includes('status');
+  const typeSelect = `<select class="form-select" id="ie-type">
+    ${Object.entries(TX_TYPE_LABELS).map(([k,v]) => `<option value="${k}"${tx.type===k?' selected':''}>${v}</option>`).join('')}
+  </select>`;
+
+  const accField = hasTwoAccounts
+    ? `<div style="display:flex;flex-direction:column;gap:.2rem">
+        <select class="form-select" id="ie-acc">${accOpts}</select>
+        <select class="form-select" id="ie-to-acc">${toAccOpts}</select>
+       </div>`
+    : `<select class="form-select" id="ie-acc">${accOpts}</select>`;
+
+  const cellMap = {
+    date:            `<td><input class="form-input" type="date" id="ie-date" value="${tx.date}" /></td>`,
+    description:     `<td><input class="form-input" id="ie-desc" value="${escHtml(tx.description || '')}" placeholder="Description" /></td>`,
+    parent_group:    `<td class="text-sm text-muted">${group && cat?.parent_id ? escHtml((group.icon||'')+' '+group.name) : '—'}</td>`,
+    category:        `<td>${needsCategory ? `<select class="form-select" id="ie-cat">${catOpts}</select>` : '<span class="text-muted text-sm">—</span>'}</td>`,
+    nature:          `<td class="text-sm text-muted">${cat?.nature || '—'}</td>`,
+    spend_type:      `<td class="text-sm text-muted">${cat?.spend_type || '—'}</td>`,
+    type:            `<td>${typeSelect}</td>`,
+    recurring:       `<td class="text-sm text-muted">${tx.is_recurring ? '↻' : '—'}</td>`,
+    amount:          `<td class="amount-col"><input class="form-input text-mono" type="number" id="ie-amt" value="${tx.amount}" step="0.01" style="text-align:right" /></td>`,
+    account:         `<td>${accField}</td>`,
+    running_balance: `<td class="amount-col text-mono text-muted">—</td>`,
+    person:          `<td><select class="form-select" id="ie-person">
+                        ${profiles.map(p => `<option value="${p.id}"${tx.user_id===p.id?' selected':''}>${escHtml(p.display_name)}</option>`).join('')}
+                      </select></td>`,
+    status:          `<td><select class="form-select" id="ie-status">
+                        <option value="confirmed"${tx.status==='confirmed'?' selected':''}>Confirmed</option>
+                        <option value="pending"${tx.status==='pending'?' selected':''}>Pending</option>
+                      </select></td>`,
+    notes:           `<td><input class="form-input" id="ie-notes" value="${escHtml(tx.notes || '')}" placeholder="Notes" /></td>`,
+  };
 
   return `<tr class="tx-inline-edit" data-id="${tx.id}">
     <td></td>
-    <td colspan="${cols.length}" style="padding:.5rem">
-      <div style="display:flex;flex-wrap:wrap;gap:.4rem;align-items:flex-start">
-        <input class="form-input" type="date" id="ie-date" value="${tx.date}" style="width:140px" />
-        <input class="form-input" id="ie-desc" value="${escHtml(tx.description || '')}" placeholder="Description" style="width:180px" />
-        ${needsCategory ? `<select class="form-select" id="ie-cat" style="width:160px">${catOpts}</select>` : ''}
-        <select class="form-select" id="ie-type" style="width:130px">
-          ${Object.entries(TX_TYPE_LABELS).map(([k,v]) => `<option value="${k}"${tx.type===k?' selected':''}>${v}</option>`).join('')}
-        </select>
-        <select class="form-select" id="ie-acc" style="width:140px">${accOpts}</select>
-        ${hasTwoAccounts ? `<select class="form-select" id="ie-to-acc" style="width:140px">${toAccOpts}</select>` : ''}
-        <input class="form-input text-mono" type="number" id="ie-amt" value="${tx.amount}" step="0.01" style="width:100px;text-align:right" />
-        ${showPerson ? `<select class="form-select" id="ie-person" style="width:130px" title="Person">
-          ${profiles.map(p => `<option value="${p.id}"${tx.user_id===p.id?' selected':''}>${escHtml(p.display_name)}</option>`).join('')}
-        </select>` : ''}
-        ${showStatus ? `<select class="form-select" id="ie-status" style="width:110px">
-          <option value="confirmed"${tx.status==='confirmed'?' selected':''}>Confirmed</option>
-          <option value="pending"${tx.status==='pending'?' selected':''}>Pending</option>
-        </select>` : ''}
-        ${showNotes ? `<input class="form-input" id="ie-notes" value="${escHtml(tx.notes || '')}" placeholder="Notes" style="width:160px" />` : ''}
-      </div>
-    </td>
+    ${cols.map(c => cellMap[c] || '<td></td>').join('')}
     <td>
       <div class="flex gap-1">
         <button class="btn btn-primary btn-sm" id="ie-save">Save</button>
@@ -904,6 +914,14 @@ async function saveTx(state, existing = null) {
 }
 
 async function createRecurringFromTx(tx) {
+  const txDate = new Date(tx.date + 'T00:00:00');
+  const dom = txDate.getDate();
+  // Start template from next month's occurrence so we don't duplicate the tx just added
+  const nm = new Date(txDate.getFullYear(), txDate.getMonth() + 1, 1);
+  const daysInNm = new Date(nm.getFullYear(), nm.getMonth() + 1, 0).getDate();
+  const nextStart = new Date(nm.getFullYear(), nm.getMonth(), Math.min(dom, daysInNm));
+  const startDate = nextStart.toISOString().slice(0, 10);
+
   await App.supabase.from('recurring_templates').insert({
     household_id: tx.household_id,
     user_id: tx.user_id,
@@ -915,8 +933,8 @@ async function createRecurringFromTx(tx) {
     to_account_id: tx.to_account_id,
     notes: tx.notes,
     frequency: 'monthly',
-    day_of_month: new Date(tx.date + 'T00:00:00').getDate(),
-    start_date: tx.date,
+    day_of_month: dom,
+    start_date: startDate,
     is_active: true,
   });
 }
