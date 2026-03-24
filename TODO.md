@@ -14,7 +14,71 @@
 
 ---
 
-## ACTIVE — Forecast Page Rework
+## NEXT — Colors & Themes
+
+### Phase 1 — CSS variable system ✅ DONE
+- ✅ Remove dead `--green-l/--blue-l/--red-l/--amber-l` vars
+- ✅ Add `--purple`, `--cyan`, `--violet` semantic vars
+- ✅ Add `--text-muted: var(--text2)` alias
+- ✅ `applyTheme()` derives all 7 status color vars, lightened one stop on dark backgrounds
+- ✅ Export `getCSSColor()` helper
+
+### Phase 2 — Theme-aware charts ✅ DONE
+- ✅ `chartOptions()` in analytics.js reads `--text3`/`--border` from CSS vars
+- ✅ All dataset colors in analytics.js use `getCSSColor()` at draw time
+- ✅ All dataset colors in forecast.js use `getCSSColor()` at draw time (including Today divider, hatch patterns, balance line)
+
+### Phase 3 — Predefined themes
+- [ ] 3–6 built-in themes (warm light, cool light, dark, high-contrast dark, …)
+- [ ] Theme picker UI in Settings (swatch grid, live preview)
+- [ ] Persist chosen theme to `household_settings.theme`
+
+### Phase 4 — Per-user theme isolation
+- [ ] Bug: changing theme for User B also changes User A
+- [ ] Move theme preference to `profiles.preferences` (per-user), not household_settings
+- [ ] Migrate any existing household theme to per-user on first load
+
+---
+
+## NEXT — Icons / Emoji
+
+- [ ] Decide default emoji set: single curated set vs free-entry
+- [ ] Emoji/icon picker component (reusable, used by categories and accounts)
+- [ ] Option to load additional icon sets (custom or multiple sets)
+- [ ] Wire picker into category form and account form
+
+---
+
+## NEXT — Transactions Page
+
+- [ ] (details TBD — review with user before starting)
+
+---
+
+## NEXT — Accounts Page Improvements
+
+### Account card
+- [ ] Color bar, name, type label, balance (large)
+- [ ] Loan: balance = amount owed, red until zero, ✓ when paid off
+- [ ] Sub-line: tx count · opening balance · base type if custom
+- [ ] Savings/Investment only: return metrics (contributed, growth, growth%, annualised%, projected monthly if expected_rate set)
+- [ ] Actions: Edit · Adjust balance · Archive · Delete
+
+### Archive behaviour
+- [ ] Archive: hidden from UI and dropdowns, balance excluded from calculations, transactions still count everywhere
+- [ ] Delete: permanent, transactions remain but unlinked from account
+
+### Account ordering
+- [ ] Draggable on accounts page and settings
+- [ ] Same order in all dropdowns everywhere
+
+### Custom account types
+- [ ] When type=custom: dropdown of saved custom_account_types (label + base_type)
+- [ ] Can create new → saves for reuse
+
+---
+
+## BACKLOG — Forecast Page Rework
 
 Work one gap at a time. Stop after each and wait for user review.
 
@@ -47,7 +111,7 @@ Work one gap at a time. Stop after each and wait for user review.
 
 ---
 
-## PENDING — Analytics Page (full build)
+## BACKLOG — Analytics Page (full build)
 
 ### Global filters (apply to all sections simultaneously)
 - Period: 3 / 6 / 12 periods + custom date range
@@ -66,7 +130,7 @@ Work one gap at a time. Stop after each and wait for user review.
 
 ---
 
-## PENDING — Budgets Improvements
+## BACKLOG — Budgets Improvements
 
 ### Budget fields
 - Category, amount (base limit per period), period_type (monthly/quarterly/annually), rollover_enabled toggle
@@ -93,43 +157,7 @@ Work one gap at a time. Stop after each and wait for user review.
 
 ---
 
-## PENDING — Accounts Page Improvements
-
-### Account card
-- Color bar, name, type label, balance (large)
-- Loan: balance = amount owed, red until zero, ✓ when paid off
-- Sub-line: tx count · opening balance · base type if custom
-- Savings/Investment only: return metrics (contributed, growth, growth%, annualised%, projected monthly if expected_rate set)
-- Actions: Edit · Adjust balance · Archive · Delete
-
-### Archive behaviour
-- Archive: hidden from UI and dropdowns, balance excluded from calculations, transactions still count everywhere
-- Delete: permanent, transactions remain but unlinked from account
-
-### Account ordering
-- Draggable on accounts page and settings
-- Same order in all dropdowns everywhere
-
-### Custom account types
-- When type=custom: dropdown of saved custom_account_types (label + base_type)
-- Can create new → saves for reuse
-
----
-
 ## NEEDS DESIGN DISCUSSION — (do not implement without user sign-off)
-
-### Themes — per-user isolation
-- Bug: changing theme for User B also changes for User A — theme must be user-scoped, not household-scoped
-- Need to decide which settings are per-user vs per-household
-
-### Colors / palette
-- Define a proper palette
-- 3–6 predefined themes
-- Rethink how theme colors are derived (CSS variables, token system, etc.)
-
-### Icons / Emoji
-- Default to a single curated emoji set, or manual add + picker
-- Option to load proper icon sets (custom or multiple sets)
 
 ### Display tiles — layout and drag
 - Fine-tune ordering and column splits
