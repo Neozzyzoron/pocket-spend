@@ -1,5 +1,14 @@
 # Pocket Spend Tracker — Claude Code Instructions
 
+## IMPORTANT: Read at session start
+1. **Read TODO.md in full** — it is the authoritative spec AND the task list
+2. **Check what is already done** (marked ✅) before implementing anything
+3. **After confirming a task is complete with the user** — update TODO.md: mark it ✅ DONE, add a brief note
+4. **Never implement a "NEEDS DESIGN DISCUSSION" item** from TODO.md without explicit user sign-off
+5. **Work one gap / one feature at a time** — stop and wait for user review between tasks
+
+---
+
 ## What this project is
 A household spend tracker for 2 users. Multi-file vanilla JS frontend hosted on GitHub Pages, Supabase backend. No build step. No framework.
 
@@ -7,7 +16,7 @@ A household spend tracker for 2 users. Multi-file vanilla JS frontend hosted on 
 ```
 pocket-spend/
 ├── CLAUDE.md          ← you are here
-├── HANDOVER.md        ← full product spec — READ THIS before implementing anything
+├── TODO.md            ← authoritative spec + task list — READ THIS FIRST
 ├── setup.sql          ← full DB schema and RLS policies
 ├── index.html         ← app shell, auth screens, sidebar, modals
 ├── css/
@@ -25,11 +34,10 @@ pocket-spend/
     └── settings.js    ← Settings page
 ```
 
-## Before implementing any page
-1. Read HANDOVER.md fully — it is the authoritative spec
-2. Read the relevant section numbers listed below per page
-3. Read utils.js to understand shared helpers already available
-4. Read app.js to understand global state (window.App.state) and APIs
+## Before implementing any feature
+1. Read TODO.md — check what's done, what's next, and the relevant spec section
+2. Read `utils.js` to understand shared helpers already available
+3. Read `app.js` to understand global state (`window.App.state`) and APIs
 
 ## Global state (window.App.state)
 Available in every page module:
@@ -124,7 +132,7 @@ const { error } = await App.supabase
   .eq('id', row.id)
   .eq('household_id', App.state.household.id);
 
-// Correct INSERT pattern  
+// Correct INSERT pattern
 const { data, error } = await App.supabase
   .from('table')
   .insert({ ...fields, household_id: App.state.household.id })
@@ -138,26 +146,16 @@ if (!error) {
 }
 ```
 
-## Key rules (from HANDOVER.md — do not violate)
+## Key rules (never violate)
 - Category required for all tx types EXCEPT transfer and adjustment
 - Pending = any transaction with date > today (status = 'pending')
-- isEffective(tx) determines if tx counts in stats/balances
-- effectiveType(account) must be used for all account type checks
+- `isEffective(tx)` determines if tx counts in stats/balances
+- `effectiveType(account)` must be used for all account type checks
 - Archived accounts hidden from dropdowns, balance excluded from stats
-- Sort order: categories by sort_order, accounts by account_order array
+- Sort order: categories by `sort_order`, accounts by `account_order` array
 - Never re-fetch after mutations — patch local state immediately
 - Never show modal for tx editing on desktop — inline row edit only
-- Cycle mode is global — always read from state.prefs.cycle_mode
-
-## Page → HANDOVER.md section reference
-- Settings:     sections 14 (Settings), 8 (Categories), 9 (Accounts), 13 (Recurring), 18 (Theme)
-- Accounts:     sections 9 (Accounts), 3 (Tx types / balance effects)
-- Transactions: sections 7 (Tx list), 3 (Tx types), 4 (Pending), 8 (Categories)
-- Dashboard:    sections 6 (Dashboard), 3 (Tx types), 4 (Pending)
-- Recurring:    sections 5 (Recurring), 13 (Recurring page)
-- Budgets:      section 10 (Budgets)
-- Analytics:    section 11 (Analytics)
-- Forecast:     section 12 (Forecast)
+- Cycle mode is global — always read from `state.prefs.cycle_mode`
 
 ## Supabase credentials
 URL:  https://blnxkxhwllawdzghvwyy.supabase.co
