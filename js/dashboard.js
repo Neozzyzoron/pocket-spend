@@ -12,11 +12,6 @@ import { openTxModal } from './transactions.js';
 
 let cashflowChart = null;
 
-const DEFAULT_CARD_ORDER = [
-  'income','spending','saved','invested','withdrawn','debt_payments',
-  'net_balance','net_worth','total_debt','due_eop','expected_eop','runway',
-];
-
 // ── MAIN RENDER ───────────────────────────────────────────────
 export function render(state) {
   const el = document.getElementById('page-dashboard');
@@ -24,14 +19,6 @@ export function render(state) {
   const period = App.cyclePeriod();
   const prefs = state.prefs;
   const stats = computeStats(state, period);
-
-  const cardOrder = prefs.dash?.cardOrder?.length ? prefs.dash.cardOrder : DEFAULT_CARD_ORDER;
-  const cardVisibility = prefs.dash?.cards || {};
-  const visibleCards = cardOrder.filter(id => {
-    if (cardVisibility[id] === false) return false;
-    if (id === 'runway' && App.cycleMode() === 'month') return false;
-    return true;
-  });
   const sections = prefs.dash?.sections || { breakdown: true, cashflow: true, recent: true };
 
   el.innerHTML = `
@@ -46,7 +33,7 @@ export function render(state) {
       </div>
     </div>
 
-    ${renderStatGrid(visibleCards, stats, cur)}
+    ${renderSummaryTiles(stats, cur)}
 
     ${sections.breakdown ? `<div class="section">
       <div class="section-header">
@@ -76,7 +63,7 @@ export function render(state) {
 
   document.getElementById('dash-add-tx-btn')?.addEventListener('click', () => openTxModal(state));
   document.getElementById('dash-customize-btn')?.addEventListener('click', () =>
-    openDashCustomize(state, cardOrder, cardVisibility, sections)
+    openDashCustomize(state, sections)
   );
 
   if (sections.breakdown) {
@@ -108,8 +95,15 @@ function computeStats(state, period) {
   });
 
   const sum = (type) => periodTx.filter(tx => tx.type === type).reduce((s, tx) => s + Number(tx.amount), 0);
-  const income       = sum('income');
-  const spending     = sum('spend');
+  const incomeTx     = periodTx.filter(tx => tx.type === 'income');
+  const income       = incomeTx.reduce((s, tx) => s + Number(tx.amount), 0);
+  const income_fixed = incomeTx.filter(tx => tx.is_recurring).reduce((s, tx) => s + Number(tx.amount), 0);
+  const income_extra = income - income_fixed;
+  const direct_spend  = sum('spend');
+  const commitments   = sum('savings') + sum('investment') + sum('debt_payment');
+  const total_expenses = direct_spend + commitments;
+  // keep legacy aliases for cashflow chart & other sections
+  const spending     = direct_spend;
   const saved        = sum('savings');
   const invested     = sum('investment');
   const withdrawn    = sum('withdrawal');
@@ -127,9 +121,12 @@ function computeStats(state, period) {
   const pending = transactions.filter(tx =>
     tx.status === 'pending' && parseISO(tx.date) > today && parseISO(tx.date) <= end
   );
-  const due_eop = pending
+  const due_count  = pending.length;
+  const due_amount = pending
     .filter(tx => ['spend','debt_payment','savings','investment'].includes(tx.type))
     .reduce((s, tx) => s + Number(tx.amount), 0);
+  // legacy
+  const due_eop = due_amount;
   const expected_eop = net_balance
     + pending.filter(t => t.type === 'income').reduce((s, t) => s + Number(t.amount), 0)
     - pending.filter(t => ['spend','debt_payment'].includes(t.type)).reduce((s, t) => s + Number(t.amount), 0);
@@ -138,85 +135,78 @@ function computeStats(state, period) {
   const dailySpend = spending / daysElapsed;
   const runway = dailySpend > 0 ? net_balance / dailySpend : null;
 
-  return { income, spending, saved, invested, withdrawn, debt_payments,
-           net_balance, net_worth, total_debt, due_eop, expected_eop, runway };
+  return { income, income_fixed, income_extra,
+           total_expenses, direct_spend, commitments,
+           spending, saved, invested, withdrawn, debt_payments,
+           net_balance, net_worth, total_debt,
+           due_count, due_amount, due_eop, expected_eop, runway };
 }
 
-// ── STAT GRID ─────────────────────────────────────────────────
-const CARD_META = {
-  income:        { label: 'Income' },
-  spending:      { label: 'Spending' },
-  saved:         { label: 'Saved' },
-  invested:      { label: 'Invested' },
-  withdrawn:     { label: 'Withdrawn' },
-  debt_payments: { label: 'Debt Payments' },
-  net_balance:   { label: 'Net Balance' },
-  net_worth:     { label: 'Net Worth' },
-  total_debt:    { label: 'Total Debt' },
-  due_eop:       { label: null }, // dynamic
-  expected_eop:  { label: null }, // dynamic
-  runway:        { label: 'Salary Runway' },
-};
+// ── SUMMARY TILES ─────────────────────────────────────────────
+function renderSummaryTiles(stats, cur) {
+  const {
+    income, income_fixed, income_extra,
+    total_expenses, direct_spend, commitments,
+    net_balance, net_worth,
+    due_count, due_amount,
+  } = stats;
 
-function gridCols(n) {
-  if (n <= 3) return n;
-  if (n === 4) return 2;  // 2+2 — symmetric
-  if (n <= 6)  return 3;  // 3+2 or 3+3
-  if (n <= 8)  return 4;  // 4+3 or 4+4
-  if (n === 9) return 3;  // 3+3+3
-  return 4;
-}
-
-function renderStatGrid(visibleCards, stats, cur) {
-  if (!visibleCards.length) return '';
-  const n = visibleCards.length;
-  const cols = gridCols(n);
+  const netColor = net_balance > 0 ? '#16a34a' : net_balance < 0 ? '#dc2626' : 'var(--text)';
+  const netBorder = net_balance > 0 ? '#16a34a' : net_balance < 0 ? '#dc2626' : 'var(--border)';
   const mode = App.cycleMode();
+  const dueLabel = mode === 'month' ? 'Due till end of month' : 'Due till next cycle';
 
-  const cards = visibleCards.map(id => {
-    const val = stats[id];
-    let label = CARD_META[id]?.label || id;
-    let display, colorClass = '';
-
-    if (id === 'runway') {
-      if (val === null) { display = '—'; colorClass = 'text-muted'; }
-      else {
-        const days = Math.round(val);
-        display = `${days}d`;
-        colorClass = days > 14 ? 'c-green' : days > 7 ? 'c-amber' : 'c-red';
-      }
-    } else if (id === 'due_eop') {
-      label = mode === 'month' ? 'Due till end of month' : 'Due till next salary';
-      display = fmtCurrency(val, cur);
-      colorClass = 'c-amber';
-    } else if (id === 'expected_eop') {
-      label = mode === 'month' ? 'Expected end of month' : 'Expected end of cycle';
-      display = fmtCurrency(val, cur);
-      colorClass = val >= 0 ? 'c-green' : 'c-red';
-    } else if (id === 'spending' || id === 'debt_payments' || id === 'total_debt') {
-      display = fmtCurrency(val, cur);
-      colorClass = val > 0 ? 'c-red' : '';
-    } else if (id === 'income' || id === 'saved') {
-      display = fmtCurrency(val, cur);
-      colorClass = val > 0 ? 'c-green' : '';
-    } else if (id === 'net_balance' || id === 'net_worth') {
-      display = fmtCurrency(val, cur);
-      colorClass = val < 0 ? 'c-red' : '';
-    } else {
-      display = fmtCurrency(val, cur);
-    }
-
-    return `<div class="card card-sm">
-      <div class="card-title text-muted text-sm">${escHtml(label)}</div>
-      <div class="card-value text-mono ${colorClass}">${display}</div>
+  function sub(label, value) {
+    return `<div style="display:flex;justify-content:space-between;font-size:.72rem;color:var(--text2)">
+      <span>${label}</span><span class="text-mono">${fmtCurrency(value, cur)}</span>
     </div>`;
-  });
+  }
 
-  return `<div class="stat-grid" style="grid-template-columns:repeat(${cols},1fr)">${cards.join('')}</div>`;
+  const tiles = [
+    // Income
+    `<div class="card card-sm" style="border-left:3px solid #166534">
+      <div class="card-title text-sm" style="color:#166534">Income</div>
+      <div class="card-value text-mono" style="color:#166534">${fmtCurrency(income, cur)}</div>
+      <div style="margin-top:.5rem;padding-top:.4rem;border-top:1px solid var(--border);display:flex;flex-direction:column;gap:.15rem">
+        ${sub('Fixed', income_fixed)}
+        ${sub('Extra', income_extra)}
+      </div>
+    </div>`,
+
+    // Expenses
+    `<div class="card card-sm" style="border-left:3px solid #c2410c">
+      <div class="card-title text-sm" style="color:#c2410c">Expenses</div>
+      <div class="card-value text-mono" style="color:#c2410c">${fmtCurrency(total_expenses, cur)}</div>
+      <div style="margin-top:.5rem;padding-top:.4rem;border-top:1px solid var(--border);display:flex;flex-direction:column;gap:.15rem">
+        ${sub('Direct spend', direct_spend)}
+        ${sub('Commitments', commitments)}
+      </div>
+    </div>`,
+
+    // Net Balance
+    `<div class="card card-sm" style="border-left:3px solid ${netBorder}">
+      <div class="card-title text-sm text-muted">Net Balance</div>
+      <div class="card-value text-mono" style="color:${netColor}">${fmtCurrency(net_balance, cur)}</div>
+      <div style="margin-top:.5rem;padding-top:.4rem;border-top:1px solid var(--border);display:flex;flex-direction:column;gap:.15rem">
+        ${sub('Net worth', net_worth)}
+      </div>
+    </div>`,
+
+    // Due Till Next Cycle
+    `<div class="card card-sm" style="border-left:3px solid #d97706">
+      <div class="card-title text-sm" style="color:#d97706">${dueLabel}</div>
+      <div class="card-value text-mono" style="color:#d97706">${due_count} tx</div>
+      <div style="margin-top:.5rem;padding-top:.4rem;border-top:1px solid var(--border);display:flex;flex-direction:column;gap:.15rem">
+        ${sub('Total due', due_amount)}
+      </div>
+    </div>`,
+  ];
+
+  return `<div class="stat-grid" style="grid-template-columns:repeat(4,1fr)">${tiles.join('')}</div>`;
 }
 
 // ── DASHBOARD CUSTOMIZE ───────────────────────────────────────
-function openDashCustomize(state, cardOrder, cardVisibility, sections) {
+function openDashCustomize(state, sections) {
   const html = `
     <div style="display:flex;flex-direction:column;gap:1rem">
       <div>
@@ -230,25 +220,6 @@ function openDashCustomize(state, cardOrder, cardVisibility, sections) {
           ).join('')}
         </div>
       </div>
-      <div>
-        <div class="form-label" style="margin-bottom:.5rem">Stat tiles — drag to reorder, toggle to show/hide</div>
-        <div id="dash-tile-list" style="display:flex;flex-direction:column;gap:3px">
-          ${cardOrder.map(id => {
-            const label = CARD_META[id]?.label || id;
-            const on = cardVisibility[id] !== false;
-            return `<div class="dash-tile-row" data-id="${id}"
-              style="display:flex;align-items:center;gap:.5rem;padding:.4rem .6rem;
-                     border:1px solid var(--border);border-radius:var(--radius);
-                     background:var(--surface);cursor:default">
-              <span style="cursor:grab;color:var(--text-muted);user-select:none">⠿</span>
-              <label style="flex:1;display:flex;align-items:center;gap:.5rem;cursor:pointer;margin:0">
-                <input type="checkbox" data-id="${id}" ${on ? 'checked' : ''} style="margin:0" />
-                ${escHtml(label)}
-              </label>
-            </div>`;
-          }).join('')}
-        </div>
-      </div>
       <div class="btn-row">
         <button type="button" class="btn btn-ghost" onclick="App.closeModal()">Cancel</button>
         <button type="button" class="btn btn-primary" id="dash-customize-save">Save</button>
@@ -257,35 +228,11 @@ function openDashCustomize(state, cardOrder, cardVisibility, sections) {
 
   App.openModal('Customize Dashboard', html);
 
-  // Wire tile drag reorder
-  const tileList = document.getElementById('dash-tile-list');
-  if (tileList) {
-    let src = null;
-    tileList.querySelectorAll('.dash-tile-row').forEach(row => {
-      row.setAttribute('draggable', 'true');
-      row.addEventListener('dragstart', e => {
-        src = row; e.dataTransfer.effectAllowed = 'move';
-        setTimeout(() => { if (src) src.style.opacity = '0.4'; }, 0);
-      });
-      row.addEventListener('dragend', () => { if (src) src.style.opacity = '1'; src = null; });
-      row.addEventListener('dragover', e => {
-        if (!src || src === row) return;
-        e.preventDefault();
-        const mid = row.getBoundingClientRect().top + row.getBoundingClientRect().height / 2;
-        if (e.clientY < mid) tileList.insertBefore(src, row);
-        else row.after(src);
-      });
-    });
-  }
-
   document.getElementById('dash-customize-save')?.addEventListener('click', async () => {
-    const newOrder = [...tileList.querySelectorAll('.dash-tile-row')].map(r => r.dataset.id);
-    const cards = {};
-    tileList.querySelectorAll('input[type="checkbox"]').forEach(cb => { cards[cb.dataset.id] = cb.checked; });
     const newSections = {};
     document.querySelectorAll('.dash-section-toggle').forEach(cb => { newSections[cb.dataset.section] = cb.checked; });
 
-    const dash = { cardOrder: newOrder, cards, sections: newSections };
+    const dash = { ...state.prefs.dash, sections: newSections };
     const newPrefs = { ...state.prefs, dash };
     const { error } = await App.supabase.from('profiles')
       .update({ preferences: newPrefs }).eq('id', state.user.id);
