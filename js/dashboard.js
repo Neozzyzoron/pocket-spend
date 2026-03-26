@@ -480,5 +480,4 @@ function renderRecentSection(state, cur, period) {
       </div>
     </div>
   </div>`;
-  </div>`;
 }
