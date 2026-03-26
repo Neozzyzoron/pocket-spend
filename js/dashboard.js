@@ -133,10 +133,10 @@ function computeStats(state, period) {
   const pending = transactions.filter(tx =>
     tx.status === 'pending' && parseISO(tx.date) > today && parseISO(tx.date) <= end
   );
-  const due_count  = pending.length;
-  const due_amount = pending
-    .filter(tx => ['spend','debt_payment','savings','investment'].includes(tx.type))
-    .reduce((s, tx) => s + Number(tx.amount), 0);
+  const duePending = pending.filter(tx => ['spend','debt_payment','savings','investment'].includes(tx.type));
+  const due_count  = duePending.length;
+  const due_amount = duePending.reduce((s, tx) => s + Number(tx.amount), 0);
+  const period_net = income - total_expenses;
   const expected_eop = net_balance
     + pending.filter(t => t.type === 'income').reduce((s, t) => s + Number(t.amount), 0)
     - pending.filter(t => ['spend','debt_payment'].includes(t.type)).reduce((s, t) => s + Number(t.amount), 0);
@@ -146,7 +146,7 @@ function computeStats(state, period) {
   const runway = dailySpend > 0 ? net_balance / dailySpend : null;
 
   return { income, income_fixed, income_extra,
-           total_expenses, direct_spend, commitments,
+           total_expenses, direct_spend, commitments, period_net,
            spending, saved, invested, withdrawn, debt_payments,
            net_balance, net_worth, total_debt,
            savings_balance, savings_withdrawn,
@@ -158,16 +158,16 @@ function computeStats(state, period) {
 function renderSummaryTiles(stats, cur) {
   const {
     income, income_fixed, income_extra,
-    total_expenses, direct_spend, commitments,
-    net_balance, net_worth,
+    total_expenses, direct_spend, commitments, period_net,
+    net_worth,
     savings_balance, saved, savings_withdrawn,
     investment_balance, invested, investment_withdrawn,
     debt_payments, total_debt,
     due_count, due_amount, expected_eop, runway,
   } = stats;
 
-  const netColor  = net_balance > 0 ? '#16a34a' : net_balance < 0 ? '#dc2626' : 'var(--text)';
-  const netBorder = net_balance > 0 ? '#16a34a' : net_balance < 0 ? '#dc2626' : 'var(--border)';
+  const netColor  = period_net > 0 ? '#16a34a' : period_net < 0 ? '#dc2626' : 'var(--text)';
+  const netBorder = period_net > 0 ? '#16a34a' : period_net < 0 ? '#dc2626' : 'var(--border)';
   const eopColor  = expected_eop > 0 ? '#4ade80' : expected_eop < 0 ? '#f87171' : 'var(--text2)';
   const mode = App.cycleMode();
   const dueLabel = mode === 'month' ? 'Due till end of month' : 'Due till next cycle';
@@ -211,10 +211,10 @@ function renderSummaryTiles(stats, cur) {
       </div>
     </div>`,
 
-    // Net Balance — dynamic color
+    // Net Balance — period income minus all expenses
     `<div class="card card-sm" style="border-left:3px solid ${netBorder}">
       <div class="card-title text-sm text-muted">Net Balance</div>
-      <div class="card-value text-mono" style="color:${netColor}">${fmtCurrency(net_balance, cur)}</div>
+      <div class="card-value text-mono" style="color:${netColor}">${fmtCurrency(period_net, cur)}</div>
       <div style="margin-top:.5rem;padding-top:.4rem;border-top:1px solid var(--border);display:flex;flex-direction:column;gap:.15rem">
         ${sub('Net worth', net_worth)}
       </div>
@@ -223,9 +223,9 @@ function renderSummaryTiles(stats, cur) {
     // Due Till Next Cycle — amber
     `<div class="card card-sm" style="border-left:3px solid #d97706">
       <div class="card-title text-sm" style="color:#d97706">${dueLabel}</div>
-      <div class="card-value text-mono" style="color:#d97706">${due_count} tx</div>
+      <div class="card-value text-mono" style="color:#d97706">${fmtCurrency(due_amount, cur)}</div>
       <div style="margin-top:.5rem;padding-top:.4rem;border-top:1px solid var(--border);display:flex;flex-direction:column;gap:.15rem">
-        ${sub('Total due', due_amount)}
+        ${subText('Transactions due', `${due_count} tx`, 'var(--text2)')}
         ${subColored('Exp. balance', expected_eop, eopColor)}
         ${runway !== null ? subText('Runway', `${Math.round(runway)}d`, runway > 14 ? '#4ade80' : runway > 7 ? '#fbbf24' : '#f87171') : ''}
       </div>
