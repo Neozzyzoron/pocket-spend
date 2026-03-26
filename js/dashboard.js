@@ -11,6 +11,12 @@ import {
 import { openTxModal } from './transactions.js';
 
 let cashflowChart = null;
+let breakdownChart = null;
+
+const CHART_COLORS = [
+  '#3b82f6','#f59e0b','#22c55e','#ef4444','#a855f7',
+  '#06b6d4','#f97316','#ec4899','#84cc16','#6366f1',
+];
 
 // ── MAIN RENDER ───────────────────────────────────────────────
 export function render(state) {
@@ -381,20 +387,52 @@ function renderBreakdownRows(state, period, cur, view) {
     rows = Object.entries(map).sort((a,b) => b[1] - a[1]);
   }
 
-  container.innerHTML = rows.map(([name, amt]) => {
-    const pct = (amt / total * 100).toFixed(1);
-    return `<div style="padding:.65rem 1rem;border-bottom:1px solid var(--border)">
-      <div class="flex justify-between items-center" style="margin-bottom:.3rem">
-        <span class="text-sm">${escHtml(name)}</span>
-        <span class="text-mono text-sm">${fmtCurrency(amt, cur)}</span>
+  const colors = rows.map((_, i) => CHART_COLORS[i % CHART_COLORS.length]);
+
+  container.innerHTML = `
+    <div style="display:flex;align-items:center;gap:1.5rem;padding:1rem;flex-wrap:wrap">
+      <div style="position:relative;width:200px;height:200px;flex-shrink:0">
+        <canvas id="breakdown-canvas"></canvas>
       </div>
-      <div class="progress-bar">
-        <div class="progress-fill" style="width:${pct}%;background:var(--accent)"></div>
+      <div style="flex:1;min-width:180px;display:flex;flex-direction:column;gap:0">
+        ${rows.map(([name, amt], i) => {
+          const pct = (amt / total * 100).toFixed(1);
+          return `<div style="display:flex;align-items:center;gap:.6rem;padding:.45rem 0;border-bottom:1px solid var(--border)">
+            <span style="width:10px;height:10px;border-radius:50%;background:${colors[i % colors.length]};flex-shrink:0"></span>
+            <span class="text-sm" style="flex:1;min-width:0" title="${escHtml(name)}">${escHtml(name)}</span>
+            <span class="text-mono text-sm" style="white-space:nowrap">${fmtCurrency(amt, cur)}</span>
+            <span class="text-muted text-sm" style="width:3.5rem;text-align:right">${pct}%</span>
+          </div>`;
+        }).join('')}
+        <div style="display:flex;justify-content:space-between;padding:.5rem 0;font-weight:600">
+          <span>Total</span><span class="text-mono">${fmtCurrency(total, cur)}</span>
+        </div>
       </div>
     </div>`;
-  }).join('') + `<div class="flex justify-between items-center" style="padding:.65rem 1rem;font-weight:600">
-    <span>Total</span><span class="text-mono">${fmtCurrency(total, cur)}</span>
-  </div>`;
+
+  setTimeout(() => {
+    const canvas = document.getElementById('breakdown-canvas');
+    if (!canvas || !window.Chart) return;
+    if (breakdownChart) { breakdownChart.destroy(); breakdownChart = null; }
+    breakdownChart = new Chart(canvas, {
+      type: 'doughnut',
+      data: {
+        labels: rows.map(([name]) => name),
+        datasets: [{ data: rows.map(([, amt]) => amt), backgroundColor: colors, borderWidth: 2, borderColor: 'var(--surface)' }],
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        cutout: '65%',
+        plugins: {
+          legend: { display: false },
+          tooltip: { callbacks: {
+            label: ctx => ` ${ctx.label}: ${fmtCurrency(ctx.raw, cur)} (${(ctx.raw / total * 100).toFixed(1)}%)`
+          }},
+        },
+      },
+    });
+  }, 50);
 }
 
 // ── CASHFLOW CHART ────────────────────────────────────────────
