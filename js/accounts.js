@@ -125,7 +125,7 @@ export function render(state) {
 function renderAccountCard(a, state, cur) {
   const { transactions } = state;
   const et = effectiveType(a);
-  const balance = calcAccountBalance({ ...a, opening_balance: 0 }, transactions);
+  const balance = calcAccountBalance(a, transactions);
   const isLoan = et === 'loan';
   const isArchived = a.is_archived;
 
@@ -139,7 +139,7 @@ function renderAccountCard(a, state, cur) {
     const contributed = transactions.filter(tx =>
       isEffective(tx) && tx.to_account_id === a.id && ['savings','investment'].includes(tx.type)
     ).reduce((s, tx) => s + Number(tx.amount), 0);
-    const growth = balance - contributed;
+    const growth = balance - (Number(a.opening_balance) || 0) - contributed;
     const growthPct = contributed > 0 ? (growth / contributed * 100) : 0;
 
     returnMetrics = `<div class="divider"></div>
@@ -358,7 +358,7 @@ function openAccountModal(state, acc = null) {
 // ── ADJUST BALANCE ────────────────────────────────────────────
 function openAdjustModal(state, acc) {
   const cur = App.currency();
-  const balance = calcAccountBalance({ ...acc, opening_balance: 0 }, state.transactions);
+  const balance = calcAccountBalance(acc, state.transactions);
 
   const html = `<div>
     <p class="text-muted" style="margin-bottom:1rem">Current balance: <strong class="text-mono">${fmtCurrency(balance, cur)}</strong></p>
