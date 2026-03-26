@@ -58,7 +58,7 @@ export function render(state) {
       </div>
     </div>` : ''}
 
-    ${sections.recent ? renderRecentSection(state, cur) : ''}
+    ${sections.recent ? renderRecentSection(state, cur, period) : ''}
   `;
 
   document.getElementById('dash-add-tx-btn')?.addEventListener('click', () => openTxModal(state));
@@ -118,6 +118,18 @@ function computeStats(state, period) {
   const total_debt = activeAcc.filter(a => effectiveType(a) === 'loan')
     .reduce((s, a) => s + calcAccountBalance(a, transactions), 0);
 
+  // Savings & investment account balances + period withdrawals
+  const savingsAccIds   = new Set(activeAcc.filter(a => effectiveType(a) === 'savings').map(a => a.id));
+  const investAccIds    = new Set(activeAcc.filter(a => effectiveType(a) === 'investment').map(a => a.id));
+  const savings_balance    = activeAcc.filter(a => savingsAccIds.has(a.id))
+    .reduce((s, a) => s + calcAccountBalance(a, transactions), 0);
+  const investment_balance = activeAcc.filter(a => investAccIds.has(a.id))
+    .reduce((s, a) => s + calcAccountBalance(a, transactions), 0);
+  const savings_withdrawn    = periodTx.filter(tx => tx.type === 'withdrawal' && savingsAccIds.has(tx.account_id))
+    .reduce((s, tx) => s + Number(tx.amount), 0);
+  const investment_withdrawn = periodTx.filter(tx => tx.type === 'withdrawal' && investAccIds.has(tx.account_id))
+    .reduce((s, tx) => s + Number(tx.amount), 0);
+
   const pending = transactions.filter(tx =>
     tx.status === 'pending' && parseISO(tx.date) > today && parseISO(tx.date) <= end
   );
@@ -125,8 +137,6 @@ function computeStats(state, period) {
   const due_amount = pending
     .filter(tx => ['spend','debt_payment','savings','investment'].includes(tx.type))
     .reduce((s, tx) => s + Number(tx.amount), 0);
-  // legacy
-  const due_eop = due_amount;
   const expected_eop = net_balance
     + pending.filter(t => t.type === 'income').reduce((s, t) => s + Number(t.amount), 0)
     - pending.filter(t => ['spend','debt_payment'].includes(t.type)).reduce((s, t) => s + Number(t.amount), 0);
@@ -139,7 +149,9 @@ function computeStats(state, period) {
            total_expenses, direct_spend, commitments,
            spending, saved, invested, withdrawn, debt_payments,
            net_balance, net_worth, total_debt,
-           due_count, due_amount, due_eop, expected_eop, runway };
+           savings_balance, savings_withdrawn,
+           investment_balance, investment_withdrawn,
+           due_count, due_amount, expected_eop, runway };
 }
 
 // ── SUMMARY TILES ─────────────────────────────────────────────
@@ -148,11 +160,15 @@ function renderSummaryTiles(stats, cur) {
     income, income_fixed, income_extra,
     total_expenses, direct_spend, commitments,
     net_balance, net_worth,
-    due_count, due_amount,
+    savings_balance, saved, savings_withdrawn,
+    investment_balance, invested, investment_withdrawn,
+    debt_payments, total_debt,
+    due_count, due_amount, expected_eop, runway,
   } = stats;
 
-  const netColor = net_balance > 0 ? '#16a34a' : net_balance < 0 ? '#dc2626' : 'var(--text)';
+  const netColor  = net_balance > 0 ? '#16a34a' : net_balance < 0 ? '#dc2626' : 'var(--text)';
   const netBorder = net_balance > 0 ? '#16a34a' : net_balance < 0 ? '#dc2626' : 'var(--border)';
+  const eopColor  = expected_eop > 0 ? '#4ade80' : expected_eop < 0 ? '#f87171' : 'var(--text2)';
   const mode = App.cycleMode();
   const dueLabel = mode === 'month' ? 'Due till end of month' : 'Due till next cycle';
 
@@ -161,9 +177,21 @@ function renderSummaryTiles(stats, cur) {
       <span>${label}</span><span class="text-mono">${fmtCurrency(value, cur)}</span>
     </div>`;
   }
+  function subColored(label, value, color) {
+    return `<div style="display:flex;justify-content:space-between;font-size:.72rem">
+      <span style="color:var(--text2)">${label}</span>
+      <span class="text-mono" style="color:${color}">${fmtCurrency(value, cur)}</span>
+    </div>`;
+  }
+  function subText(label, text, color) {
+    return `<div style="display:flex;justify-content:space-between;font-size:.72rem">
+      <span style="color:var(--text2)">${label}</span>
+      <span class="text-mono" style="color:${color || 'var(--text2)'}">${text}</span>
+    </div>`;
+  }
 
   const tiles = [
-    // Income
+    // Income — dark green
     `<div class="card card-sm" style="border-left:3px solid #166534">
       <div class="card-title text-sm" style="color:#166534">Income</div>
       <div class="card-value text-mono" style="color:#166534">${fmtCurrency(income, cur)}</div>
@@ -173,7 +201,7 @@ function renderSummaryTiles(stats, cur) {
       </div>
     </div>`,
 
-    // Expenses
+    // Expenses — dark orange
     `<div class="card card-sm" style="border-left:3px solid #c2410c">
       <div class="card-title text-sm" style="color:#c2410c">Expenses</div>
       <div class="card-value text-mono" style="color:#c2410c">${fmtCurrency(total_expenses, cur)}</div>
@@ -183,7 +211,7 @@ function renderSummaryTiles(stats, cur) {
       </div>
     </div>`,
 
-    // Net Balance
+    // Net Balance — dynamic color
     `<div class="card card-sm" style="border-left:3px solid ${netBorder}">
       <div class="card-title text-sm text-muted">Net Balance</div>
       <div class="card-value text-mono" style="color:${netColor}">${fmtCurrency(net_balance, cur)}</div>
@@ -192,12 +220,43 @@ function renderSummaryTiles(stats, cur) {
       </div>
     </div>`,
 
-    // Due Till Next Cycle
+    // Due Till Next Cycle — amber
     `<div class="card card-sm" style="border-left:3px solid #d97706">
       <div class="card-title text-sm" style="color:#d97706">${dueLabel}</div>
       <div class="card-value text-mono" style="color:#d97706">${due_count} tx</div>
       <div style="margin-top:.5rem;padding-top:.4rem;border-top:1px solid var(--border);display:flex;flex-direction:column;gap:.15rem">
         ${sub('Total due', due_amount)}
+        ${subColored('Exp. balance', expected_eop, eopColor)}
+        ${runway !== null ? subText('Runway', `${Math.round(runway)}d`, runway > 14 ? '#4ade80' : runway > 7 ? '#fbbf24' : '#f87171') : ''}
+      </div>
+    </div>`,
+
+    // Savings — blue
+    `<div class="card card-sm" style="border-left:3px solid #1d4ed8">
+      <div class="card-title text-sm" style="color:#1d4ed8">Savings</div>
+      <div class="card-value text-mono" style="color:#1d4ed8">${fmtCurrency(savings_balance, cur)}</div>
+      <div style="margin-top:.5rem;padding-top:.4rem;border-top:1px solid var(--border);display:flex;flex-direction:column;gap:.15rem">
+        ${sub('Contributed', saved)}
+        ${sub('Withdrawn', savings_withdrawn)}
+      </div>
+    </div>`,
+
+    // Investments — purple
+    `<div class="card card-sm" style="border-left:3px solid #7c3aed">
+      <div class="card-title text-sm" style="color:#7c3aed">Investments</div>
+      <div class="card-value text-mono" style="color:#7c3aed">${fmtCurrency(investment_balance, cur)}</div>
+      <div style="margin-top:.5rem;padding-top:.4rem;border-top:1px solid var(--border);display:flex;flex-direction:column;gap:.15rem">
+        ${sub('Contributed', invested)}
+        ${sub('Withdrawn', investment_withdrawn)}
+      </div>
+    </div>`,
+
+    // Debt Payments — dark red
+    `<div class="card card-sm" style="border-left:3px solid #991b1b">
+      <div class="card-title text-sm" style="color:#991b1b">Debt Payments</div>
+      <div class="card-value text-mono" style="color:#991b1b">${fmtCurrency(debt_payments, cur)}</div>
+      <div style="margin-top:.5rem;padding-top:.4rem;border-top:1px solid var(--border);display:flex;flex-direction:column;gap:.15rem">
+        ${sub('Total debt', total_debt)}
       </div>
     </div>`,
   ];
@@ -375,37 +434,44 @@ function drawCashflowChart(state, cur) {
   });
 }
 
-// ── RECENT TRANSACTIONS ───────────────────────────────────────
-function renderRecentSection(state, cur) {
+// ── PERIOD TRANSACTIONS ───────────────────────────────────────
+function renderRecentSection(state, cur, period) {
   const { transactions, categories } = state;
-  const recent = transactions.filter(tx => tx.status === 'confirmed').slice(0, 7);
+  const { start, end } = period;
 
-  if (!recent.length) {
+  const periodTx = transactions.filter(tx => {
+    const d = parseISO(tx.date);
+    return d >= start && d <= end;
+  }).slice(0, 50); // cap at 50 rows
+
+  if (!periodTx.length) {
     return `<div class="section">
-      <div class="section-header"><div class="section-title">Recent Transactions</div></div>
-      <div class="card"><div class="empty-state">No confirmed transactions yet</div></div>
+      <div class="section-header"><div class="section-title">This Period</div></div>
+      <div class="card"><div class="empty-state">No transactions this period</div></div>
     </div>`;
   }
 
   return `<div class="section">
     <div class="section-header">
-      <div class="section-title">Recent Transactions</div>
+      <div class="section-title">This Period</div>
       <button class="btn btn-ghost btn-sm" onclick="App.navigate('transactions')">View all →</button>
     </div>
     <div class="card" style="padding:0">
       <div class="table-wrap">
         <table class="table">
           <thead><tr>
-            <th>Date</th><th>Description</th><th>Category</th><th class="amount-col">Amount</th>
+            <th>Date</th><th>Description</th><th>Category</th><th>Type</th><th class="amount-col">Amount</th>
           </tr></thead>
           <tbody>
-            ${recent.map(tx => {
+            ${periodTx.map(tx => {
               const cat = categories.find(c => c.id === tx.category_id);
               const isNeg = ['spend','savings','investment','transfer','debt_payment'].includes(tx.type);
-              return `<tr>
-                <td class="text-muted text-sm" style="white-space:nowrap">${fmtRelDate(tx.date)}</td>
-                <td class="truncate" style="max-width:200px">${escHtml(tx.description || '—')}</td>
-                <td class="text-sm text-muted">${cat ? escHtml(cat.icon + ' ' + cat.name) : '<span class="badge badge-neutral">—</span>'}</td>
+              const isPending = tx.status === 'pending';
+              return `<tr class="${isPending ? 'text-muted' : ''}">
+                <td class="text-sm" style="white-space:nowrap">${fmtRelDate(tx.date)}</td>
+                <td class="truncate" style="max-width:200px">${escHtml(tx.description || '—')}${isPending ? ' <span class="badge badge-pending" style="font-size:.65rem">Pending</span>' : ''}</td>
+                <td class="text-sm text-muted">${cat ? escHtml((cat.icon || '') + ' ' + cat.name) : '<span class="text-muted">—</span>'}</td>
+                <td class="text-sm text-muted">${tx.type}</td>
                 <td class="amount-col text-mono ${isNeg ? 'negative' : 'positive'}">${isNeg ? '−' : '+'}${fmtCurrency(tx.amount, cur)}</td>
               </tr>`;
             }).join('')}
@@ -413,5 +479,6 @@ function renderRecentSection(state, cur) {
         </table>
       </div>
     </div>
+  </div>`;
   </div>`;
 }
