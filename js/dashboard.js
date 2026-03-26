@@ -58,7 +58,7 @@ export function render(state) {
       </div>
     </div>` : ''}
 
-    ${sections.recent ? renderRecentSection(state, cur) : ''}
+    ${sections.recent ? renderRecentSection(state, cur, period) : ''}
   `;
 
   document.getElementById('dash-add-tx-btn')?.addEventListener('click', () => openTxModal(state));
@@ -434,37 +434,44 @@ function drawCashflowChart(state, cur) {
   });
 }
 
-// ── RECENT TRANSACTIONS ───────────────────────────────────────
-function renderRecentSection(state, cur) {
+// ── PERIOD TRANSACTIONS ───────────────────────────────────────
+function renderRecentSection(state, cur, period) {
   const { transactions, categories } = state;
-  const recent = transactions.filter(tx => tx.status === 'confirmed').slice(0, 7);
+  const { start, end } = period;
 
-  if (!recent.length) {
+  const periodTx = transactions.filter(tx => {
+    const d = parseISO(tx.date);
+    return d >= start && d <= end;
+  }).slice(0, 50); // cap at 50 rows
+
+  if (!periodTx.length) {
     return `<div class="section">
-      <div class="section-header"><div class="section-title">Recent Transactions</div></div>
-      <div class="card"><div class="empty-state">No confirmed transactions yet</div></div>
+      <div class="section-header"><div class="section-title">This Period</div></div>
+      <div class="card"><div class="empty-state">No transactions this period</div></div>
     </div>`;
   }
 
   return `<div class="section">
     <div class="section-header">
-      <div class="section-title">Recent Transactions</div>
+      <div class="section-title">This Period</div>
       <button class="btn btn-ghost btn-sm" onclick="App.navigate('transactions')">View all →</button>
     </div>
     <div class="card" style="padding:0">
       <div class="table-wrap">
         <table class="table">
           <thead><tr>
-            <th>Date</th><th>Description</th><th>Category</th><th class="amount-col">Amount</th>
+            <th>Date</th><th>Description</th><th>Category</th><th>Type</th><th class="amount-col">Amount</th>
           </tr></thead>
           <tbody>
-            ${recent.map(tx => {
+            ${periodTx.map(tx => {
               const cat = categories.find(c => c.id === tx.category_id);
               const isNeg = ['spend','savings','investment','transfer','debt_payment'].includes(tx.type);
-              return `<tr>
-                <td class="text-muted text-sm" style="white-space:nowrap">${fmtRelDate(tx.date)}</td>
-                <td class="truncate" style="max-width:200px">${escHtml(tx.description || '—')}</td>
-                <td class="text-sm text-muted">${cat ? escHtml(cat.icon + ' ' + cat.name) : '<span class="badge badge-neutral">—</span>'}</td>
+              const isPending = tx.status === 'pending';
+              return `<tr class="${isPending ? 'text-muted' : ''}">
+                <td class="text-sm" style="white-space:nowrap">${fmtRelDate(tx.date)}</td>
+                <td class="truncate" style="max-width:200px">${escHtml(tx.description || '—')}${isPending ? ' <span class="badge badge-pending" style="font-size:.65rem">Pending</span>' : ''}</td>
+                <td class="text-sm text-muted">${cat ? escHtml((cat.icon || '') + ' ' + cat.name) : '<span class="text-muted">—</span>'}</td>
+                <td class="text-sm text-muted">${tx.type}</td>
                 <td class="amount-col text-mono ${isNeg ? 'negative' : 'positive'}">${isNeg ? '−' : '+'}${fmtCurrency(tx.amount, cur)}</td>
               </tr>`;
             }).join('')}
@@ -472,5 +479,6 @@ function renderRecentSection(state, cur) {
         </table>
       </div>
     </div>
+  </div>`;
   </div>`;
 }
