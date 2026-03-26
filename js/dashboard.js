@@ -136,14 +136,12 @@ function computeStats(state, period) {
   const duePending = pending.filter(tx => ['spend','debt_payment','savings','investment'].includes(tx.type));
   const due_count  = duePending.length;
   const due_amount = duePending.reduce((s, tx) => s + Number(tx.amount), 0);
-  const period_net = income - total_expenses;
-  const expected_eop = net_balance
-    + pending.filter(t => t.type === 'income').reduce((s, t) => s + Number(t.amount), 0)
-    - pending.filter(t => ['spend','debt_payment'].includes(t.type)).reduce((s, t) => s + Number(t.amount), 0);
+  const period_net    = income - total_expenses;
+  const expected_eop  = period_net - due_amount;
 
   const daysElapsed = Math.max(1, Math.floor((today - start) / 86400000) + 1);
   const dailySpend = spending / daysElapsed;
-  const runway = dailySpend > 0 ? net_balance / dailySpend : null;
+  const runway = dailySpend > 0 ? period_net / dailySpend : null;
 
   return { income, income_fixed, income_extra,
            total_expenses, direct_spend, commitments, period_net,
