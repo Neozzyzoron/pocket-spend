@@ -314,6 +314,8 @@ function openDashCustomize(state, sections) {
 }
 
 // ── SPENDING BREAKDOWN ────────────────────────────────────────
+const NATURE_LABEL = { savings: 'Savings', investment: 'Investments', debt_payment: 'Debt Payments' };
+
 function renderBreakdownRows(state, period, cur, view) {
   const container = document.getElementById('breakdown-rows');
   if (!container) return;
@@ -321,14 +323,16 @@ function renderBreakdownRows(state, period, cur, view) {
   const { transactions, categories } = state;
   const { start, end } = period;
 
+  // All expense-type transactions in period
   const spendTx = transactions.filter(tx =>
-    isEffective(tx) && tx.type === 'spend' &&
+    isEffective(tx) &&
+    ['spend','savings','investment','debt_payment'].includes(tx.type) &&
     parseISO(tx.date) >= start && parseISO(tx.date) <= end
   );
   const total = spendTx.reduce((s, tx) => s + Number(tx.amount), 0);
 
   if (total === 0) {
-    container.innerHTML = `<div class="empty-state" style="padding:2rem">No spending this period</div>`;
+    container.innerHTML = `<div class="empty-state" style="padding:2rem">No expenses this period</div>`;
     return;
   }
 
@@ -337,8 +341,12 @@ function renderBreakdownRows(state, period, cur, view) {
   if (view === 'nature') {
     const map = {};
     for (const tx of spendTx) {
-      const cat = categories.find(c => c.id === tx.category_id);
-      const key = cat?.nature || 'Uncategorised';
+      // savings/investment/debt_payment use their own label regardless of category nature
+      let key = NATURE_LABEL[tx.type];
+      if (!key) {
+        const cat = categories.find(c => c.id === tx.category_id);
+        key = cat?.nature || 'Uncategorised';
+      }
       map[key] = (map[key] || 0) + Number(tx.amount);
     }
     rows = Object.entries(map).sort((a,b) => b[1] - a[1]);
@@ -347,7 +355,7 @@ function renderBreakdownRows(state, period, cur, view) {
     const map = {};
     for (const tx of spendTx) {
       const cat = categories.find(c => c.id === tx.category_id);
-      if (!cat) { map['Uncategorised'] = (map['Uncategorised'] || 0) + Number(tx.amount); continue; }
+      if (!cat) { map[NATURE_LABEL[tx.type] || 'Uncategorised'] = (map[NATURE_LABEL[tx.type] || 'Uncategorised'] || 0) + Number(tx.amount); continue; }
       const group = cat.parent_id ? (categories.find(c => c.id === cat.parent_id) || cat) : cat;
       const key = `${group.icon || ''} ${group.name}`.trim();
       map[key] = (map[key] || 0) + Number(tx.amount);
@@ -355,7 +363,6 @@ function renderBreakdownRows(state, period, cur, view) {
     rows = Object.entries(map).sort((a,b) => b[1] - a[1]);
 
   } else if (view === 'all') {
-    // Every individual transaction
     rows = spendTx
       .sort((a, b) => b.amount - a.amount)
       .map(tx => {
@@ -364,10 +371,11 @@ function renderBreakdownRows(state, period, cur, view) {
         return [name || '—', Number(tx.amount)];
       });
   } else {
+    // subcategory view
     const map = {};
     for (const tx of spendTx) {
       const cat = categories.find(c => c.id === tx.category_id);
-      const key = cat ? `${cat.icon || ''} ${cat.name}`.trim() : 'Uncategorised';
+      const key = cat ? `${cat.icon || ''} ${cat.name}`.trim() : (NATURE_LABEL[tx.type] || 'Uncategorised');
       map[key] = (map[key] || 0) + Number(tx.amount);
     }
     rows = Object.entries(map).sort((a,b) => b[1] - a[1]);
