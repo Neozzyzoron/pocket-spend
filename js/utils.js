@@ -393,13 +393,15 @@ export function calcAccountBalance(account, transactions) {
       // loan doesn't receive transfers normally
     } else {
       if (isSource) {
-        // Deduct from source
+        // income: account_id is the receiving account → credit
+        if (tx.type === 'income') bal += amt;
+        // outflows
         if (['spend', 'savings', 'investment', 'transfer', 'withdrawal', 'debt_payment'].includes(tx.type)) bal -= amt;
         if (tx.type === 'adjustment') bal += (tx.notes === 'subtract' ? -amt : amt);
       }
       if (isDest) {
-        // Add to destination
-        if (['income', 'savings', 'investment', 'transfer', 'withdrawal'].includes(tx.type)) bal += amt;
+        // inbound transfers/savings/investment/withdrawal arriving at this account
+        if (['savings', 'investment', 'transfer', 'withdrawal'].includes(tx.type)) bal += amt;
       }
     }
   }
