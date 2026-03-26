@@ -118,13 +118,22 @@ function computeStats(state, period) {
   const total_debt = activeAcc.filter(a => effectiveType(a) === 'loan')
     .reduce((s, a) => s + calcAccountBalance(a, transactions), 0);
 
-  // Savings & investment account balances + period withdrawals
-  const savingsAccIds   = new Set(activeAcc.filter(a => effectiveType(a) === 'savings').map(a => a.id));
-  const investAccIds    = new Set(activeAcc.filter(a => effectiveType(a) === 'investment').map(a => a.id));
-  const savings_balance    = activeAcc.filter(a => savingsAccIds.has(a.id))
-    .reduce((s, a) => s + calcAccountBalance(a, transactions), 0);
-  const investment_balance = activeAcc.filter(a => investAccIds.has(a.id))
-    .reduce((s, a) => s + calcAccountBalance(a, transactions), 0);
+  // Savings & investment balances — derived from transactions only (no opening_balance)
+  const savingsAccIds = new Set(activeAcc.filter(a => effectiveType(a) === 'savings').map(a => a.id));
+  const investAccIds  = new Set(activeAcc.filter(a => effectiveType(a) === 'investment').map(a => a.id));
+
+  const allEffective = transactions.filter(tx => isEffective(tx));
+  const savings_balance = allEffective.reduce((s, tx) => {
+    if (tx.type === 'savings') return s + Number(tx.amount);
+    if (tx.type === 'withdrawal' && savingsAccIds.has(tx.account_id)) return s - Number(tx.amount);
+    return s;
+  }, 0);
+  const investment_balance = allEffective.reduce((s, tx) => {
+    if (tx.type === 'investment') return s + Number(tx.amount);
+    if (tx.type === 'withdrawal' && investAccIds.has(tx.account_id)) return s - Number(tx.amount);
+    return s;
+  }, 0);
+
   const savings_withdrawn    = periodTx.filter(tx => tx.type === 'withdrawal' && savingsAccIds.has(tx.account_id))
     .reduce((s, tx) => s + Number(tx.amount), 0);
   const investment_withdrawn = periodTx.filter(tx => tx.type === 'withdrawal' && investAccIds.has(tx.account_id))
