@@ -450,10 +450,10 @@ function panelHtml(rows, total, cur, canvasId) {
 }
 
 function stackedBarPanelHtml(canvasId) {
-  return `<div style="position:relative;height:120px;padding:.75rem"><canvas id="${canvasId}"></canvas></div>`;
+  return `<div style="position:relative;height:160px;padding:.75rem"><canvas id="${canvasId}"></canvas></div>`;
 }
 
-function renderStackedBarPanel(canvasId, incomeRows, expenseRows, cur, getChart, setChart) {
+function renderStackedBarPanel(canvasId, incomeRows, expenseRows, savingsNet, investNet, cur, getChart, setChart) {
   setTimeout(() => {
     const canvas = document.getElementById(canvasId);
     if (!canvas || !window.Chart) return;
@@ -462,27 +462,38 @@ function renderStackedBarPanel(canvasId, incomeRows, expenseRows, cur, getChart,
 
     const incomeTotal  = incomeRows.reduce((s, r) => s + r[1], 0);
     const expenseTotal = expenseRows.reduce((s, r) => s + r[1], 0);
-
     const toColor = (row, i) => { const c = rowColor(row, i); return c.length === 7 ? c + '99' : c; };
+
+    const labels = ['Income', 'Expenses'];
+    if (savingsNet !== 0) labels.push('Savings');
+    if (investNet  !== 0) labels.push('Investments');
+    const n = labels.length;
+    const pad = (val, idx) => Array.from({length: n}, (_, j) => j === idx ? val : 0);
 
     const datasets = [
       ...incomeRows.map((row, i) => ({
-        label: row[0],
-        data: [row[1], 0],
-        backgroundColor: toColor(row, i),
-        borderWidth: 0, borderRadius: 4,
+        label: row[0], data: pad(row[1], 0),
+        backgroundColor: toColor(row, i), borderWidth: 0, borderRadius: 4,
       })),
       ...expenseRows.map((row, i) => ({
-        label: row[0],
-        data: [0, row[1]],
-        backgroundColor: toColor(row, i + incomeRows.length),
-        borderWidth: 0, borderRadius: 4,
+        label: row[0], data: pad(row[1], 1),
+        backgroundColor: toColor(row, i + incomeRows.length), borderWidth: 0, borderRadius: 4,
       })),
     ];
+    if (savingsNet !== 0) datasets.push({
+      label: 'Savings', data: pad(savingsNet, labels.indexOf('Savings')),
+      backgroundColor: '#3b82f699', borderWidth: 0, borderRadius: 4,
+    });
+    if (investNet !== 0) datasets.push({
+      label: 'Investments', data: pad(investNet, labels.indexOf('Investments')),
+      backgroundColor: '#a855f799', borderWidth: 0, borderRadius: 4,
+    });
+
+    const totals = { Income: incomeTotal, Expenses: expenseTotal, Savings: savingsNet, Investments: investNet };
 
     setChart(new Chart(canvas, {
       type: 'bar',
-      data: { labels: ['Income', 'Expenses'], datasets },
+      data: { labels, datasets },
       options: {
         indexAxis: 'y',
         responsive: true, maintainAspectRatio: false,
@@ -492,10 +503,7 @@ function renderStackedBarPanel(canvasId, incomeRows, expenseRows, cur, getChart,
             bodyFont: { family: 'DM Sans, sans-serif' },
             callbacks: {
               label: ctx => ctx.raw > 0 ? ` ${ctx.dataset.label}: ${fmtCurrency(ctx.raw, cur)}` : null,
-              footer: items => {
-                const total = items[0]?.label === 'Income' ? incomeTotal : expenseTotal;
-                return `Total: ${fmtCurrency(total, cur)}`;
-              },
+              footer: items => `Total: ${fmtCurrency(totals[items[0]?.label] ?? 0, cur)}`,
             },
             filter: item => item.raw > 0,
           },
@@ -521,27 +529,36 @@ function renderBreakdownRows(state, period, cur, view) {
   const container = document.getElementById('breakdown-rows');
   if (!container) return;
 
-  const { transactions, categories } = state;
+  const { transactions, categories, accounts } = state;
   const { start, end } = period;
 
   const inPeriod = (tx) => isEffective(tx) && parseISO(tx.date) >= start && parseISO(tx.date) <= end;
-  const expenseTx = transactions.filter(tx => inPeriod(tx) && EXPENSE_TYPES.includes(tx.type));
-  const allTx     = transactions.filter(tx => inPeriod(tx) && ALL_TYPES.includes(tx.type));
+  const periodTx  = transactions.filter(inPeriod);
+  const expenseTx = periodTx.filter(tx => EXPENSE_TYPES.includes(tx.type));
 
   const expenseTotal = expenseTx.reduce((s,tx) => s + Number(tx.amount), 0);
-  const allTotal     = allTx.reduce((s,tx) => s + Number(tx.amount), 0);
 
-  if (expenseTotal === 0 && allTotal === 0) {
+  // Savings / investments net delta (contributed minus withdrawn)
+  const activeAcc    = accounts.filter(a => !a.is_archived);
+  const savingsIds   = new Set(activeAcc.filter(a => effectiveType(a) === 'savings').map(a => a.id));
+  const investIds    = new Set(activeAcc.filter(a => effectiveType(a) === 'investment').map(a => a.id));
+  const sumAmt       = arr => arr.reduce((s, tx) => s + Number(tx.amount), 0);
+  const savingsNet   = sumAmt(periodTx.filter(tx => tx.type === 'savings'))
+                     - sumAmt(periodTx.filter(tx => tx.type === 'withdrawal' && savingsIds.has(tx.account_id)));
+  const investNet    = sumAmt(periodTx.filter(tx => tx.type === 'investment'))
+                     - sumAmt(periodTx.filter(tx => tx.type === 'withdrawal' && investIds.has(tx.account_id)));
+
+  // All Transactions bar: income vs pure spend+debt_payment (no savings/investment/withdrawal)
+  const allIncomeTx  = periodTx.filter(tx => tx.type === 'income');
+  const allExpTx     = periodTx.filter(tx => tx.type === 'spend' || tx.type === 'debt_payment');
+  const allIncomeRows = allIncomeTx.length > 0 ? buildRows(allIncomeTx, view, categories) : [];
+  const allExpRows    = allExpTx.length    > 0 ? buildRows(allExpTx,    view, categories) : [];
+  const hasAllTx = allIncomeRows.length > 0 || allExpRows.length > 0 || savingsNet !== 0 || investNet !== 0;
+
+  if (expenseTotal === 0 && !hasAllTx) {
     container.innerHTML = `<div class="empty-state" style="padding:2rem">No transactions this period</div>`;
     return;
   }
-
-  const expenseRows  = expenseTotal > 0 ? buildRows(expenseTx, view, categories) : [];
-  const allIncomeTx  = allTx.filter(tx => tx.type === 'income');
-  const allExpTx     = allTx.filter(tx => tx.type !== 'income');
-  const allIncomeRows = allIncomeTx.length > 0 ? buildRows(allIncomeTx, view, categories) : [];
-  const allExpRows    = allExpTx.length    > 0 ? buildRows(allExpTx,    view, categories) : [];
-  const hasAllTx = allIncomeRows.length > 0 || allExpRows.length > 0;
 
   container.innerHTML = `
     <div class="card" style="flex:1;min-width:280px;padding:0">
@@ -554,7 +571,7 @@ function renderBreakdownRows(state, period, cur, view) {
     </div>`;
 
   if (expenseRows.length) renderPanel('', 'breakdown-canvas', expenseRows, expenseTotal, cur, () => breakdownChart, c => { breakdownChart = c; });
-  if (hasAllTx) renderStackedBarPanel('alltx-canvas', allIncomeRows, allExpRows, cur, () => allTxChart, c => { allTxChart = c; });
+  if (hasAllTx) renderStackedBarPanel('alltx-canvas', allIncomeRows, allExpRows, savingsNet, investNet, cur, () => allTxChart, c => { allTxChart = c; });
 }
 
 // ── CASHFLOW CHART ────────────────────────────────────────────
