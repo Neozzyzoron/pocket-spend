@@ -107,14 +107,13 @@ function computeStats(state, period) {
   const income_fixed = incomeTx.filter(tx => tx.is_recurring).reduce((s, tx) => s + Number(tx.amount), 0);
   const income_extra = income - income_fixed;
   const direct_spend  = sum('spend');
-  const commitments   = sum('savings') + sum('investment') + sum('debt_payment');
-  const total_expenses = direct_spend + commitments;
-  // keep legacy aliases for cashflow chart & other sections
+  const debt_payments = sum('debt_payment');
+  const total_expenses = direct_spend + debt_payments;
+  // keep legacy aliases
   const spending     = direct_spend;
   const saved        = sum('savings');
   const invested     = sum('investment');
   const withdrawn    = sum('withdrawal');
-  const debt_payments = sum('debt_payment');
 
   const activeAcc = accounts.filter(a => !a.is_archived);
   const net_balance = activeAcc.filter(a => isLiquid(a))
@@ -125,21 +124,14 @@ function computeStats(state, period) {
   const total_debt = activeAcc.filter(a => effectiveType(a) === 'loan')
     .reduce((s, a) => s + calcAccountBalance(a, transactions), 0);
 
-  // Savings & investment balances — derived from transactions only (no opening_balance)
+  // Savings & investment — actual account balances
+  const savings_balance    = activeAcc.filter(a => effectiveType(a) === 'savings')
+    .reduce((s, a) => s + calcAccountBalance(a, transactions), 0);
+  const investment_balance = activeAcc.filter(a => effectiveType(a) === 'investment')
+    .reduce((s, a) => s + calcAccountBalance(a, transactions), 0);
+
   const savingsAccIds = new Set(activeAcc.filter(a => effectiveType(a) === 'savings').map(a => a.id));
   const investAccIds  = new Set(activeAcc.filter(a => effectiveType(a) === 'investment').map(a => a.id));
-
-  const allEffective = transactions.filter(tx => isEffective(tx));
-  const savings_balance = allEffective.reduce((s, tx) => {
-    if (tx.type === 'savings') return s + Number(tx.amount);
-    if (tx.type === 'withdrawal' && savingsAccIds.has(tx.account_id)) return s - Number(tx.amount);
-    return s;
-  }, 0);
-  const investment_balance = allEffective.reduce((s, tx) => {
-    if (tx.type === 'investment') return s + Number(tx.amount);
-    if (tx.type === 'withdrawal' && investAccIds.has(tx.account_id)) return s - Number(tx.amount);
-    return s;
-  }, 0);
 
   const savings_withdrawn    = periodTx.filter(tx => tx.type === 'withdrawal' && savingsAccIds.has(tx.account_id))
     .reduce((s, tx) => s + Number(tx.amount), 0);
@@ -149,7 +141,7 @@ function computeStats(state, period) {
   const pending = transactions.filter(tx =>
     tx.status === 'pending' && parseISO(tx.date) > today && parseISO(tx.date) <= end
   );
-  const duePending = pending.filter(tx => ['spend','debt_payment','savings','investment'].includes(tx.type));
+  const duePending = pending.filter(tx => ['spend','debt_payment'].includes(tx.type));
   const due_count  = duePending.length;
   const due_amount = duePending.reduce((s, tx) => s + Number(tx.amount), 0);
   const period_net    = income - total_expenses;
@@ -160,8 +152,8 @@ function computeStats(state, period) {
   const runway = dailySpend > 0 ? period_net / dailySpend : null;
 
   return { income, income_fixed, income_extra,
-           total_expenses, direct_spend, commitments, period_net,
-           spending, saved, invested, withdrawn, debt_payments,
+           total_expenses, direct_spend, debt_payments, period_net,
+           spending, saved, invested, withdrawn,
            net_balance, net_worth, total_debt,
            savings_balance, savings_withdrawn,
            investment_balance, investment_withdrawn,
@@ -172,11 +164,11 @@ function computeStats(state, period) {
 function renderSummaryTiles(stats, cur) {
   const {
     income, income_fixed, income_extra,
-    total_expenses, direct_spend, commitments, period_net,
+    total_expenses, direct_spend, debt_payments, period_net,
     net_worth,
     savings_balance, saved, savings_withdrawn,
     investment_balance, invested, investment_withdrawn,
-    debt_payments, total_debt,
+    total_debt,
     due_count, due_amount, expected_eop, runway,
   } = stats;
 
@@ -225,7 +217,7 @@ function renderSummaryTiles(stats, cur) {
       <div class="card-value text-mono" style="color:#c2410c">${fmtCurrency(total_expenses, cur)}</div>
       <div style="margin-top:.5rem;padding-top:.4rem;border-top:1px solid var(--border);display:flex;flex-direction:column;gap:.15rem">
         ${sub('Direct spend', direct_spend, '#c2410c')}
-        ${sub('Commitments', commitments, '#c2410c')}
+        ${sub('Debt pmts', debt_payments, '#c2410c')}
       </div>
     </div>`,
 
@@ -586,16 +578,23 @@ function drawCashflowChart(state, cur) {
   const pb = profiles[1]?.preferences?.salary_day;
   const periods = getPeriods(App.cycleMode(), { salary_day_a: pa, salary_day_b: pb }, 6);
 
+  const activeAcc  = state.accounts.filter(a => !a.is_archived);
+  const savingsIds = new Set(activeAcc.filter(a => effectiveType(a) === 'savings').map(a => a.id));
+  const investIds  = new Set(activeAcc.filter(a => effectiveType(a) === 'investment').map(a => a.id));
+
   const labels = periods.map(p => p.label);
-  const incomeData = [], spendData = [], savedData = [];
+  const incomeData = [], spendData = [], netSavingsData = [];
 
   for (const p of periods) {
     const ptx = transactions.filter(tx =>
       isEffective(tx) && parseISO(tx.date) >= p.start && parseISO(tx.date) <= p.end
     );
-    incomeData.push(ptx.filter(t => t.type === 'income').reduce((s,t) => s + Number(t.amount), 0));
-    spendData.push(ptx.filter(t => t.type === 'spend').reduce((s,t) => s + Number(t.amount), 0));
-    savedData.push(ptx.filter(t => t.type === 'savings').reduce((s,t) => s + Number(t.amount), 0));
+    const sum = type => ptx.filter(t => t.type === type).reduce((s,t) => s + Number(t.amount), 0);
+    incomeData.push(sum('income'));
+    spendData.push(sum('spend') + sum('debt_payment'));
+    const savingsWithdrawn = ptx.filter(t => t.type === 'withdrawal' && (savingsIds.has(t.account_id) || investIds.has(t.account_id)))
+      .reduce((s,t) => s + Number(t.amount), 0);
+    netSavingsData.push(sum('savings') + sum('investment') - savingsWithdrawn);
   }
 
   if (cashflowChart) { cashflowChart.destroy(); cashflowChart = null; }
@@ -605,9 +604,9 @@ function drawCashflowChart(state, cur) {
     data: {
       labels,
       datasets: [
-        { label: 'Income',   data: incomeData, backgroundColor: '#22c55e99' },
-        { label: 'Spending', data: spendData,  backgroundColor: '#ef444499' },
-        { label: 'Saved',    data: savedData,  backgroundColor: '#3b82f699' },
+        { label: 'Income',      data: incomeData,     backgroundColor: '#22c55e99' },
+        { label: 'Expenses',    data: spendData,      backgroundColor: '#ef444499' },
+        { label: 'Net Savings', data: netSavingsData, backgroundColor: '#3b82f699' },
       ],
     },
     options: {
