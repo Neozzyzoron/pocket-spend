@@ -202,23 +202,9 @@ function renderSummaryTiles(stats, cur) {
   const dueLabel = mode === 'month' ? 'Due till end of month' : 'Due till next cycle';
 
   const subStyle = 'display:flex;justify-content:space-between;font-size:1.2rem;color:var(--text2)';
-  function sub(label, value) {
-    return `<div style="${subStyle}">
-      <span>${label}</span><span class="text-mono">${fmtCurrency(value, cur)}</span>
-    </div>`;
-  }
-  function subColored(label, value, valueColor) {
-    return `<div style="${subStyle}">
-      <span>${label}</span>
-      <span class="text-mono" style="color:${valueColor}">${fmtCurrency(value, cur)}</span>
-    </div>`;
-  }
-  function subText(label, text, valueColor) {
-    return `<div style="${subStyle}">
-      <span>${label}</span>
-      <span class="text-mono" style="color:${valueColor || 'var(--text2)'}">${text}</span>
-    </div>`;
-  }
+  const sub     = (label, value) => `<div style="${subStyle}"><span>${label}</span><span class="text-mono">${fmtCurrency(value, cur)}</span></div>`;
+  const subColored = sub;
+  const subText = (label, text) => `<div style="${subStyle}"><span>${label}</span><span class="text-mono">${text}</span></div>`;
 
   const tiles = [
     `<div class="card card-sm" style="border-left:3px solid ${CLR.income}">
@@ -243,7 +229,7 @@ function renderSummaryTiles(stats, cur) {
       <div class="card-title text-sm" style="color:${CLR.neutral}">Net Balance</div>
       <div class="card-value text-mono" style="color:${netColor}">${fmtCurrency(period_net, cur)}</div>
       <div style="margin-top:.5rem;padding-top:.4rem;border-top:1px solid var(--border);display:flex;flex-direction:column;gap:.15rem">
-        ${subColored('Incl. savings', incl_savings, incl_savings >= 0 ? CLR.income : CLR.spend)}
+        ${subColored('Incl. savings', incl_savings)}
         ${sub('Net worth', net_worth)}
       </div>
     </div>`,
@@ -252,8 +238,8 @@ function renderSummaryTiles(stats, cur) {
       <div class="card-title text-sm" style="color:${CLR.neutral}">${dueLabel}</div>
       <div class="card-value text-mono" style="color:${CLR.neutral}">${fmtCurrency(due_amount, cur)}</div>
       <div style="margin-top:.5rem;padding-top:.4rem;border-top:1px solid var(--border);display:flex;flex-direction:column;gap:.15rem">
-        ${subColored('Exp. balance', expected_eop, eopColor)}
-        ${runway !== null ? subText('Runway', `${Math.round(runway)}d`, runway > 14 ? CLR.income : runway > 7 ? CLR.balance : CLR.spend) : ''}
+        ${subColored('Exp. balance', expected_eop)}
+        ${runway !== null ? subText('Runway', `${Math.round(runway)}d`) : ''}
       </div>
     </div>`,
 
