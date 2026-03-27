@@ -332,7 +332,7 @@ const NATURE_LABEL = {
 const NATURE_COLORS = {
   'Income':        '#22c55e',
   'Debt Payments': '#ef4444',
-  'Essentials':    '#c2410c',
+  'Essentials':    '#b45309',
   'Discretionary': '#f59e0b',
   'Savings':       '#3b82f6',
   'Investments':   '#a855f7',
@@ -407,11 +407,12 @@ function renderPanel(html, canvasId, rows, total, cur, getChart, setChart) {
     const existing = getChart();
     if (existing) { existing.destroy(); }
     const colors = rows.map((row, i) => rowColor(row, i));
+    const colorsOpaque = colors.map(c => c.length === 7 ? c + '99' : c);
     setChart(new Chart(canvas, {
       type: 'doughnut',
       data: {
         labels: rows.map(([name]) => name),
-        datasets: [{ data: rows.map(([,amt]) => amt), backgroundColor: colors, borderWidth: 2, borderColor: 'var(--surface)' }],
+        datasets: [{ data: rows.map(([,amt]) => amt), backgroundColor: colorsOpaque, borderWidth: 0 }],
       },
       options: {
         responsive: true, maintainAspectRatio: false, cutout: '65%',
