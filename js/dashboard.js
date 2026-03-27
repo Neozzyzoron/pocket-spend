@@ -19,6 +19,17 @@ const CHART_COLORS = [
   '#06b6d4','#f97316','#ec4899','#84cc16','#6366f1',
 ];
 
+// Shared color palette — used consistently across tiles, charts, nature breakdown
+const CLR = {
+  income:  '#22c55e',
+  spend:   '#ef4444',
+  debt:    '#dc2626',
+  savings: '#3b82f6',
+  invest:  '#8b5cf6',
+  balance: '#f59e0b',
+  neutral: '#6b7280',
+};
+
 // ── MAIN RENDER ───────────────────────────────────────────────
 export function render(state) {
   const el = document.getElementById('page-dashboard');
@@ -172,9 +183,8 @@ function renderSummaryTiles(stats, cur) {
     due_count, due_amount, expected_eop, runway,
   } = stats;
 
-  const netColor  = period_net > 0 ? '#16a34a' : period_net < 0 ? '#dc2626' : 'var(--text)';
-  const netBorder = period_net > 0 ? '#16a34a' : period_net < 0 ? '#dc2626' : 'var(--border)';
-  const eopColor  = expected_eop > 0 ? '#4ade80' : expected_eop < 0 ? '#f87171' : 'var(--text2)';
+  const netColor = period_net > 0 ? CLR.income : period_net < 0 ? CLR.spend : 'var(--text)';
+  const eopColor = expected_eop > 0 ? CLR.income : expected_eop < 0 ? CLR.spend : 'var(--text2)';
   const mode = App.cycleMode();
   const dueLabel = mode === 'month' ? 'Due till end of month' : 'Due till next cycle';
 
@@ -201,72 +211,65 @@ function renderSummaryTiles(stats, cur) {
   }
 
   const tiles = [
-    // Income — dark green
-    `<div class="card card-sm" style="border-left:3px solid #166534">
-      <div class="card-title text-sm" style="color:#166534">Income</div>
-      <div class="card-value text-mono" style="color:#166534">${fmtCurrency(income, cur)}</div>
+    `<div class="card card-sm" style="border-left:3px solid ${CLR.income}">
+      <div class="card-title text-sm" style="color:${CLR.income}">Income</div>
+      <div class="card-value text-mono" style="color:${CLR.income}">${fmtCurrency(income, cur)}</div>
       <div style="margin-top:.5rem;padding-top:.4rem;border-top:1px solid var(--border);display:flex;flex-direction:column;gap:.15rem">
-        ${sub('Fixed', income_fixed, '#166534')}
-        ${sub('Extra', income_extra, '#166534')}
+        ${sub('Fixed', income_fixed, CLR.income)}
+        ${sub('Extra', income_extra, CLR.income)}
       </div>
     </div>`,
 
-    // Spend — dark orange
-    `<div class="card card-sm" style="border-left:3px solid #c2410c">
-      <div class="card-title text-sm" style="color:#c2410c">Spend</div>
-      <div class="card-value text-mono" style="color:#c2410c">${fmtCurrency(total_expenses, cur)}</div>
+    `<div class="card card-sm" style="border-left:3px solid ${CLR.spend}">
+      <div class="card-title text-sm" style="color:${CLR.spend}">Spend</div>
+      <div class="card-value text-mono" style="color:${CLR.spend}">${fmtCurrency(total_expenses, cur)}</div>
       <div style="margin-top:.5rem;padding-top:.4rem;border-top:1px solid var(--border);display:flex;flex-direction:column;gap:.15rem">
-        ${sub('Direct spend', direct_spend, '#c2410c')}
-        ${sub('Debt pmts', debt_payments, '#c2410c')}
+        ${sub('Direct spend', direct_spend, CLR.spend)}
+        ${sub('Debt pmts', debt_payments, CLR.debt)}
       </div>
     </div>`,
 
-    // Net Balance — period income minus all expenses
-    `<div class="card card-sm" style="border-left:3px solid ${netBorder}">
-      <div class="card-title text-sm text-muted">Net Balance</div>
+    `<div class="card card-sm" style="border-left:3px solid ${CLR.neutral}">
+      <div class="card-title text-sm" style="color:${CLR.neutral}">Net Balance</div>
       <div class="card-value text-mono" style="color:${netColor}">${fmtCurrency(period_net, cur)}</div>
       <div style="margin-top:.5rem;padding-top:.4rem;border-top:1px solid var(--border);display:flex;flex-direction:column;gap:.15rem">
-        ${sub('Net worth', net_worth, netColor)}
+        ${sub('Net worth', net_worth, CLR.neutral)}
       </div>
     </div>`,
 
-    // Due Till Next Cycle — amber
-    `<div class="card card-sm" style="border-left:3px solid #d97706">
-      <div class="card-title text-sm" style="color:#d97706">${dueLabel}</div>
-      <div class="card-value text-mono" style="color:#d97706">${fmtCurrency(due_amount, cur)}</div>
+    `<div class="card card-sm" style="border-left:3px solid ${CLR.neutral}">
+      <div class="card-title text-sm" style="color:${CLR.neutral}">${dueLabel}</div>
+      <div class="card-value text-mono" style="color:${CLR.neutral}">${fmtCurrency(due_amount, cur)}</div>
       <div style="margin-top:.5rem;padding-top:.4rem;border-top:1px solid var(--border);display:flex;flex-direction:column;gap:.15rem">
-        ${subText('Transactions due', `${due_count} tx`, 'var(--text2)', '#d97706')}
-        ${subColored('Exp. balance', expected_eop, eopColor, '#d97706')}
-        ${runway !== null ? subText('Runway', `${Math.round(runway)}d`, runway > 14 ? '#4ade80' : runway > 7 ? '#fbbf24' : '#f87171', '#d97706') : ''}
+        ${subText('Transactions due', `${due_count} tx`, 'var(--text2)', CLR.neutral)}
+        ${subColored('Exp. balance', expected_eop, eopColor, CLR.neutral)}
+        ${runway !== null ? subText('Runway', `${Math.round(runway)}d`, runway > 14 ? CLR.income : runway > 7 ? CLR.balance : CLR.spend, CLR.neutral) : ''}
       </div>
     </div>`,
 
-    // Savings — blue
-    `<div class="card card-sm" style="border-left:3px solid #1d4ed8">
-      <div class="card-title text-sm" style="color:#1d4ed8">Savings</div>
-      <div class="card-value text-mono" style="color:#1d4ed8">${fmtCurrency(savings_balance, cur)}</div>
+    `<div class="card card-sm" style="border-left:3px solid ${CLR.savings}">
+      <div class="card-title text-sm" style="color:${CLR.savings}">Savings</div>
+      <div class="card-value text-mono" style="color:${CLR.savings}">${fmtCurrency(savings_balance, cur)}</div>
       <div style="margin-top:.5rem;padding-top:.4rem;border-top:1px solid var(--border);display:flex;flex-direction:column;gap:.15rem">
-        ${sub('Contributed', saved, '#1d4ed8')}
-        ${sub('Withdrawn', savings_withdrawn, '#1d4ed8')}
+        ${sub('Contributed', saved, CLR.savings)}
+        ${sub('Withdrawn', savings_withdrawn, CLR.savings)}
       </div>
     </div>`,
 
-    // Investments — purple
-    `<div class="card card-sm" style="border-left:3px solid #7c3aed">
-      <div class="card-title text-sm" style="color:#7c3aed">Investments</div>
-      <div class="card-value text-mono" style="color:#7c3aed">${fmtCurrency(investment_balance, cur)}</div>
+    `<div class="card card-sm" style="border-left:3px solid ${CLR.invest}">
+      <div class="card-title text-sm" style="color:${CLR.invest}">Investments</div>
+      <div class="card-value text-mono" style="color:${CLR.invest}">${fmtCurrency(investment_balance, cur)}</div>
       <div style="margin-top:.5rem;padding-top:.4rem;border-top:1px solid var(--border);display:flex;flex-direction:column;gap:.15rem">
-        ${sub('Contributed', invested, '#7c3aed')}
-        ${sub('Withdrawn', investment_withdrawn, '#7c3aed')}
+        ${sub('Contributed', invested, CLR.invest)}
+        ${sub('Withdrawn', investment_withdrawn, CLR.invest)}
       </div>
     </div>`,
 
-    // Debt Payments — dark red
-    `<div class="card card-sm" style="border-left:3px solid #991b1b">
-      <div class="card-title text-sm" style="color:#991b1b">Debt Payments</div>
-      <div class="card-value text-mono" style="color:#991b1b">${fmtCurrency(debt_payments, cur)}</div>
+    `<div class="card card-sm" style="border-left:3px solid ${CLR.debt}">
+      <div class="card-title text-sm" style="color:${CLR.debt}">Debt Payments</div>
+      <div class="card-value text-mono" style="color:${CLR.debt}">${fmtCurrency(debt_payments, cur)}</div>
       <div style="margin-top:.5rem;padding-top:.4rem;border-top:1px solid var(--border);display:flex;flex-direction:column;gap:.15rem">
-        ${sub('Total debt', total_debt, '#991b1b')}
+        ${sub('Total debt', total_debt, CLR.debt)}
       </div>
     </div>`,
   ];
@@ -322,12 +325,12 @@ const NATURE_LABEL = {
   income: 'Income', withdrawal: 'Withdrawal',
 };
 const NATURE_COLORS = {
-  'Income':        '#22c55e',
-  'Debt Payments': '#ef4444',
+  'Income':        CLR.income,
+  'Debt Payments': CLR.debt,
   'Essentials':    '#b45309',
   'Discretionary': '#f59e0b',
-  'Savings':       '#3b82f6',
-  'Investments':   '#a855f7',
+  'Savings':       CLR.savings,
+  'Investments':   CLR.invest,
   'Withdrawal':    '#06b6d4',
 };
 const EXPENSE_TYPES = ['spend','savings','investment','debt_payment'];
@@ -456,9 +459,9 @@ function renderStackedBarPanel(canvasId, incomeRows, expenseRows, savingsNet, in
     const expenseTotal = expenseRows.reduce((s, r) => s + r[1], 0);
     const toColor = (row, i) => { const c = rowColor(row, i); return c.length === 7 ? c + '99' : c; };
 
+    const hasSavInv = savingsNet !== 0 || investNet !== 0;
     const labels = ['Income', 'Spend'];
-    if (savingsNet !== 0) labels.push('Savings');
-    if (investNet  !== 0) labels.push('Investments');
+    if (hasSavInv) labels.push('Savings & Inv.');
     const n = labels.length;
     const pad = (val, idx) => Array.from({length: n}, (_, j) => j === idx ? val : 0);
 
@@ -473,15 +476,15 @@ function renderStackedBarPanel(canvasId, incomeRows, expenseRows, savingsNet, in
       })),
     ];
     if (savingsNet !== 0) datasets.push({
-      label: 'Savings', data: pad(savingsNet, labels.indexOf('Savings')),
-      backgroundColor: '#3b82f699', borderWidth: 0, borderRadius: 4,
+      label: 'Savings', data: pad(savingsNet, 2),
+      backgroundColor: CLR.savings + '99', borderWidth: 0, borderRadius: 4,
     });
     if (investNet !== 0) datasets.push({
-      label: 'Investments', data: pad(investNet, labels.indexOf('Investments')),
-      backgroundColor: '#a855f799', borderWidth: 0, borderRadius: 4,
+      label: 'Investments', data: pad(investNet, 2),
+      backgroundColor: CLR.invest + '99', borderWidth: 0, borderRadius: 4,
     });
 
-    const totals = { Income: incomeTotal, Spend: expenseTotal, Savings: savingsNet, Investments: investNet };
+    const totals = { Income: incomeTotal, Spend: expenseTotal, 'Savings & Inv.': savingsNet + investNet };
 
     setChart(new Chart(canvas, {
       type: 'bar',
@@ -606,13 +609,13 @@ function drawCashflowChart(state, cur) {
     data: {
       labels,
       datasets: [
-        { label: 'Income',                    data: incomeData,     backgroundColor: '#22c55e99' },
-        { label: 'Spend',                     data: spendData,      backgroundColor: '#ef444499' },
-        { label: 'Net Savings & Investments', data: netSavingsData, backgroundColor: '#3b82f699' },
+        { label: 'Income',                    data: incomeData,     backgroundColor: CLR.income  + '99' },
+        { label: 'Spend',                     data: spendData,      backgroundColor: CLR.spend   + '99' },
+        { label: 'Net Savings & Investments', data: netSavingsData, backgroundColor: CLR.savings + '99' },
         {
           label: 'Balance',
           data: balanceData,
-          backgroundColor: balanceData.map(v => v >= 0 ? '#22c55e55' : '#ef444455'),
+          backgroundColor: CLR.balance + '99',
           borderWidth: 0, borderRadius: 4,
         },
       ],
