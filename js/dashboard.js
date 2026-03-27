@@ -582,8 +582,6 @@ function drawCashflowChart(state, cur) {
   const savingsIds = new Set(activeAcc.filter(a => effectiveType(a) === 'savings').map(a => a.id));
   const investIds  = new Set(activeAcc.filter(a => effectiveType(a) === 'investment').map(a => a.id));
 
-  const liquidAcc = activeAcc.filter(a => isLiquid(a));
-
   const labels = periods.map(p => p.label);
   const incomeData = [], spendData = [], netSavingsData = [], balanceData = [];
 
@@ -597,9 +595,8 @@ function drawCashflowChart(state, cur) {
     const withdrawn = ptx.filter(t => t.type === 'withdrawal' && (savingsIds.has(t.account_id) || investIds.has(t.account_id)))
       .reduce((s,t) => s + Number(t.amount), 0);
     netSavingsData.push(sum('savings') + sum('investment') - withdrawn);
-    // end-of-period liquid balance: all transactions up to period end
-    const txToDate = transactions.filter(tx => parseISO(tx.date) <= p.end);
-    balanceData.push(liquidAcc.reduce((s, a) => s + calcAccountBalance(a, txToDate), 0));
+    // period net balance: income minus spend for this period only
+    balanceData.push(sum('income') - sum('spend') - sum('debt_payment'));
   }
 
   if (cashflowChart) { cashflowChart.destroy(); cashflowChart = null; }
@@ -613,11 +610,10 @@ function drawCashflowChart(state, cur) {
         { label: 'Spend',                     data: spendData,      backgroundColor: '#ef444499' },
         { label: 'Net Savings & Investments', data: netSavingsData, backgroundColor: '#3b82f699' },
         {
-          type: 'line', label: 'Balance',
+          label: 'Balance',
           data: balanceData,
-          borderColor: '#f59e0bcc', backgroundColor: 'transparent',
-          borderWidth: 2, pointRadius: 3, pointBackgroundColor: '#f59e0b',
-          tension: 0.3, yAxisID: 'y2',
+          backgroundColor: balanceData.map(v => v >= 0 ? '#22c55e55' : '#ef444455'),
+          borderWidth: 0, borderRadius: 4,
         },
       ],
     },
@@ -633,11 +629,6 @@ function drawCashflowChart(state, cur) {
         y: {
           ticks: { color: '#8b90a8', callback: v => fmtCurrency(v, cur) },
           grid: { color: '#2a2e3f40' },
-        },
-        y2: {
-          position: 'right',
-          ticks: { color: '#f59e0b', font: { family: 'DM Sans' }, callback: v => fmtCurrency(v, cur) },
-          grid: { display: false },
         },
       },
     },
