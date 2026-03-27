@@ -449,6 +449,49 @@ function panelHtml(rows, total, cur, canvasId) {
   </div>`;
 }
 
+function barPanelHtml(rows, canvasId) {
+  const h = Math.max(180, rows.length * 32);
+  return `<div style="position:relative;height:${h}px;padding:.75rem"><canvas id="${canvasId}"></canvas></div>`;
+}
+
+function renderBarPanel(canvasId, rows, total, cur, getChart, setChart) {
+  setTimeout(() => {
+    const canvas = document.getElementById(canvasId);
+    if (!canvas || !window.Chart) return;
+    const existing = getChart();
+    if (existing) { existing.destroy(); }
+    const colors = rows.map((row, i) => rowColor(row, i)).map(c => c.length === 7 ? c + '99' : c);
+    setChart(new Chart(canvas, {
+      type: 'bar',
+      data: {
+        labels: rows.map(([name]) => name),
+        datasets: [{ data: rows.map(([,amt]) => amt), backgroundColor: colors, borderWidth: 0, borderRadius: 4 }],
+      },
+      options: {
+        indexAxis: 'y',
+        responsive: true, maintainAspectRatio: false,
+        plugins: {
+          legend: { display: false },
+          tooltip: {
+            bodyFont: { family: 'DM Sans, sans-serif' },
+            callbacks: { label: ctx => ` ${fmtCurrency(ctx.raw, cur)} (${(ctx.raw/total*100).toFixed(1)}%)` },
+          },
+        },
+        scales: {
+          x: {
+            ticks: { color: '#8b90a8', font: { family: 'DM Sans' }, callback: v => fmtCurrency(v, cur) },
+            grid: { color: '#2a2e3f40' },
+          },
+          y: {
+            ticks: { color: '#8b90a8', font: { family: 'DM Sans' } },
+            grid: { display: false },
+          },
+        },
+      },
+    }));
+  }, 50);
+}
+
 function renderBreakdownRows(state, period, cur, view) {
   const container = document.getElementById('breakdown-rows');
   if (!container) return;
@@ -478,11 +521,11 @@ function renderBreakdownRows(state, period, cur, view) {
     </div>
     <div class="card" style="flex:1;min-width:280px;padding:0">
       <div style="padding:.6rem 1rem .3rem;font-weight:600;font-size:.8rem;color:var(--text2);border-bottom:1px solid var(--border)">All Transactions</div>
-      ${allRows.length ? panelHtml(allRows, allTotal, cur, 'alltx-canvas') : '<div class="empty-state" style="padding:1.5rem">No transactions</div>'}
+      ${allRows.length ? barPanelHtml(allRows, 'alltx-canvas') : '<div class="empty-state" style="padding:1.5rem">No transactions</div>'}
     </div>`;
 
   if (expenseRows.length) renderPanel('', 'breakdown-canvas', expenseRows, expenseTotal, cur, () => breakdownChart, c => { breakdownChart = c; });
-  if (allRows.length)     renderPanel('', 'alltx-canvas',     allRows,     allTotal,     cur, () => allTxChart,     c => { allTxChart = c; });
+  if (allRows.length)     renderBarPanel('alltx-canvas', allRows, allTotal, cur, () => allTxChart, c => { allTxChart = c; });
 }
 
 // ── CASHFLOW CHART ────────────────────────────────────────────
