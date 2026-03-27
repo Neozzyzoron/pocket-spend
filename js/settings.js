@@ -850,10 +850,9 @@ function openCategoryModal(state, cat = null, parentGroup = null) {
   const isSub = !!parentGroup || !!(cat?.parent_id);
   const parent = parentGroup || (cat?.parent_id ? state.categories.find(c => c.id === cat.parent_id) : null);
   // Pre-fill new subcategory with parent's data so user only needs to change the name
-  if (!isEdit && parent) cat = { icon: parent.icon, color: parent.color, nature: parent.nature, spend_type: parent.spend_type, default_tx_type: parent.default_tx_type };
+  if (!isEdit && parent) cat = { icon: parent.icon, color: parent.color, nature: parent.nature, default_tx_type: parent.default_tx_type };
 
-  const NATURES = ['Essentials', 'Discretionary', 'Income', 'Savings', 'Investments', 'Debt'];
-  const SPEND_TYPES = ['Fixed', 'Variable', 'One-time'];
+  const NATURES = ['Income', 'Essentials', 'Variables', 'Discretionary', 'Savings', 'Investments', 'Debt'];
   const TX_TYPES = ['spend','income','savings','investment','transfer','withdrawal','debt_payment','adjustment'];
 
   const html = `<form id="cat-form">
@@ -881,21 +880,12 @@ function openCategoryModal(state, cat = null, parentGroup = null) {
     </div>
     ${buildIconPickerHtml()}
     ${colorSwatchesHtml('cf-color')}
-    <div class="form-row">
-      <div class="form-group" style="flex:1">
-        <label class="form-label">Nature</label>
-        <select class="form-select" id="cf-nature">
-          <option value="">—</option>
-          ${NATURES.map(n => `<option value="${n}"${cat?.nature === n ? ' selected' : ''}>${n}</option>`).join('')}
-        </select>
-      </div>
-      <div class="form-group" style="flex:1">
-        <label class="form-label">Spend type</label>
-        <select class="form-select" id="cf-spend-type">
-          <option value="">—</option>
-          ${SPEND_TYPES.map(s => `<option value="${s}"${cat?.spend_type === s ? ' selected' : ''}>${s}</option>`).join('')}
-        </select>
-      </div>
+    <div class="form-group">
+      <label class="form-label">Nature</label>
+      <select class="form-select" id="cf-nature">
+        <option value="">—</option>
+        ${NATURES.map(n => `<option value="${n}"${cat?.nature === n ? ' selected' : ''}>${n}</option>`).join('')}
+      </select>
     </div>
     <div class="form-group">
       <label class="form-label">Default transaction type</label>
@@ -929,7 +919,6 @@ function openCategoryModal(state, cat = null, parentGroup = null) {
       icon: document.getElementById('cf-icon')?.value.trim() || null,
       color: document.getElementById('cf-color')?.value || null,
       nature: document.getElementById('cf-nature')?.value || null,
-      spend_type: document.getElementById('cf-spend-type')?.value || null,
       default_tx_type: document.getElementById('cf-tx-type')?.value || null,
       parent_id: cat?.parent_id || parent?.id || null,
       sort_order: cat?.sort_order ?? (state.categories.filter(c => !c.parent_id).length * 10),

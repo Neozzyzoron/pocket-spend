@@ -235,7 +235,7 @@ export const TX_TYPE_LABELS = {
   spend: 'Spend', income: 'Income', savings: 'Savings',
   investment: 'Investment', transfer: 'Transfer',
   withdrawal: 'Withdrawal', debt_payment: 'Debt Payment',
-  adjustment: 'Adjustment',
+  adjustment: 'Adjust',
 };
 
 /** Type → badge CSS class */

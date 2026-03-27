@@ -24,7 +24,6 @@ export function render(state) {
   const filterNatures   = el.dataset.filterNatures   ? el.dataset.filterNatures.split(',').filter(Boolean)   : [];
   const filterGroups    = el.dataset.filterGroups    ? el.dataset.filterGroups.split(',').filter(Boolean)    : [];
   const filterSubcats   = el.dataset.filterSubcats   ? el.dataset.filterSubcats.split(',').filter(Boolean)   : [];
-  const filterSpendTypes= el.dataset.filterSpendTypes? el.dataset.filterSpendTypes.split(',').filter(Boolean): [];
 
   const pa = state.profiles[0]?.preferences?.salary_day;
   const pb = state.profiles[1]?.preferences?.salary_day;
@@ -32,7 +31,7 @@ export function render(state) {
   const mode = App.cycleMode();
 
   // Build category filter function from active data filters
-  const catFilter = buildCatFilter(state.categories, filterNatures, filterGroups, filterSubcats, filterSpendTypes);
+  const catFilter = buildCatFilter(state.categories, filterNatures, filterGroups, filterSubcats);
 
   // Build periods: historyN past + current + forecastN future
   const allPeriods = buildForecastPeriods(mode, prefsForCycle, historyN, forecastN);
@@ -43,8 +42,8 @@ export function render(state) {
   const projections = computeProjections(state, allPeriods, currentPeriod, avgWindow, personFilter, catFilter);
 
   // Cascading filter options
-  const cascOpts = buildCascadingOptions(state.categories, filterNatures, filterGroups, filterSubcats, filterSpendTypes);
-  const hasFilters = filterNatures.length || filterGroups.length || filterSubcats.length || filterSpendTypes.length;
+  const cascOpts = buildCascadingOptions(state.categories, filterNatures, filterGroups, filterSubcats);
+  const hasFilters = filterNatures.length || filterGroups.length || filterSubcats.length;
 
   el.innerHTML = `
     <div class="page-header">
@@ -77,11 +76,11 @@ export function render(state) {
       <div class="flex gap-2 items-center" style="flex-wrap:wrap;margin-top:.625rem;padding-top:.625rem;border-top:1px solid var(--border)">
         <span class="text-sm text-muted">View:</span>
         <div class="toggle-group">
-          ${['nature','group','subcategory','spend_type'].map(v =>
-            `<button class="toggle-group-btn fc-view-btn${viewMode===v?' active':''}" data-view="${v}">${v==='spend_type'?'Spend type':v.charAt(0).toUpperCase()+v.slice(1)}</button>`
+          ${['nature','group','subcategory'].map(v =>
+            `<button class="toggle-group-btn fc-view-btn${viewMode===v?' active':''}" data-view="${v}">${v.charAt(0).toUpperCase()+v.slice(1)}</button>`
           ).join('')}
         </div>
-        ${renderCascadingFilterDropdowns(cascOpts, filterNatures, filterGroups, filterSubcats, filterSpendTypes)}
+        ${renderCascadingFilterDropdowns(cascOpts, filterNatures, filterGroups, filterSubcats)}
         ${hasFilters ? `<button class="btn btn-ghost btn-sm fc-clear-all-filters">Clear filters</button>` : ''}
       </div>
     </div>
@@ -162,7 +161,7 @@ export function render(state) {
       if (filter === 'nature')    el.dataset.filterNatures    = selected.join(',');
       else if (filter === 'group')     el.dataset.filterGroups     = selected.join(',');
       else if (filter === 'subcat')    el.dataset.filterSubcats    = selected.join(',');
-      else if (filter === 'spendtype') el.dataset.filterSpendTypes = selected.join(',');
+      // spend_type filter removed
       render(state);
     });
   });
@@ -171,7 +170,6 @@ export function render(state) {
     el.dataset.filterNatures = '';
     el.dataset.filterGroups = '';
     el.dataset.filterSubcats = '';
-    el.dataset.filterSpendTypes = '';
     render(state);
   });
 
@@ -939,8 +937,7 @@ function groupKey(categoryId, categories, viewMode) {
   if (!categoryId) return '__none__';
   const cat = categories.find(c => c.id === categoryId);
   if (!cat) return '__none__';
-  if (viewMode === 'nature')     return cat.nature || 'Uncategorised';
-  if (viewMode === 'spend_type') return cat.spend_type || 'Unknown';
+  if (viewMode === 'nature')      return cat.nature || 'Uncategorised';
   if (viewMode === 'subcategory') return cat.id;
   // group: use parent if subcategory, else self
   return cat.parent_id || cat.id;
@@ -949,15 +946,15 @@ function groupKey(categoryId, categories, viewMode) {
 // Returns display label for a group key
 function groupLabel(key, categories, viewMode) {
   if (key === '__none__') return 'Uncategorised';
-  if (viewMode === 'nature' || viewMode === 'spend_type') return key;
+  if (viewMode === 'nature') return key;
   const cat = categories.find(c => c.id === key);
   if (!cat) return 'Uncategorised';
   return `${cat.icon || ''} ${cat.name}`.trim();
 }
 
 // Builds a function that returns true if a category passes all active data filters
-function buildCatFilter(categories, filterNatures, filterGroups, filterSubcats, filterSpendTypes) {
-  const noFilter = !filterNatures.length && !filterGroups.length && !filterSubcats.length && !filterSpendTypes.length;
+function buildCatFilter(categories, filterNatures, filterGroups, filterSubcats) {
+  const noFilter = !filterNatures.length && !filterGroups.length && !filterSubcats.length;
   if (noFilter) return () => true;
 
   return (categoryId, txType) => {
@@ -966,46 +963,35 @@ function buildCatFilter(categories, filterNatures, filterGroups, filterSubcats, 
     const cat = categories.find(c => c.id === categoryId);
     if (!cat) return false;
     const groupId = cat.parent_id || cat.id;
-    if (filterNatures.length    && !filterNatures.includes(cat.nature))      return false;
-    if (filterGroups.length     && !filterGroups.includes(groupId))          return false;
-    if (filterSubcats.length    && cat.parent_id && !filterSubcats.includes(cat.id)) return false;
-    if (filterSpendTypes.length && !filterSpendTypes.includes(cat.spend_type)) return false;
+    if (filterNatures.length && !filterNatures.includes(cat.nature))                  return false;
+    if (filterGroups.length  && !filterGroups.includes(groupId))                      return false;
+    if (filterSubcats.length && cat.parent_id && !filterSubcats.includes(cat.id))     return false;
     return true;
   };
 }
 
 // Builds available options for each cascading filter given the other active filters
-function buildCascadingOptions(categories, filterNatures, filterGroups, filterSubcats, filterSpendTypes) {
+function buildCascadingOptions(categories, filterNatures, filterGroups, filterSubcats) {
   const groups  = categories.filter(c => !c.parent_id);
   const subcats = categories.filter(c =>  c.parent_id);
 
-  const passNature    = c => !filterNatures.length    || filterNatures.includes(c.nature);
-  const passGroup     = c => !filterGroups.length     || filterGroups.includes(c.parent_id || c.id);
-  const passSubcat    = c => !filterSubcats.length    || !c.parent_id || filterSubcats.includes(c.id);
-  const passSpendType = c => !filterSpendTypes.length || filterSpendTypes.includes(c.spend_type);
+  const passNature = c => !filterNatures.length || filterNatures.includes(c.nature);
+  const passGroup  = c => !filterGroups.length  || filterGroups.includes(c.parent_id || c.id);
+  const passSubcat = c => !filterSubcats.length || !c.parent_id || filterSubcats.includes(c.id);
 
-  // Available natures: cats that pass group + subcat + spendType
   const availNatures = [...new Set(
-    categories.filter(c => passGroup(c) && passSubcat(c) && passSpendType(c) && c.nature).map(c => c.nature)
+    categories.filter(c => passGroup(c) && passSubcat(c) && c.nature).map(c => c.nature)
   )].sort();
 
-  // Available groups: groups that pass nature + subcat + spendType
-  const availGroups = groups.filter(g => passNature(g) && passSubcat(g) && passSpendType(g));
+  const availGroups  = groups.filter(g => passNature(g) && passSubcat(g));
+  const availSubcats = subcats.filter(s => passNature(s) && passGroup(s));
 
-  // Available subcats: subcats that pass nature + group + spendType
-  const availSubcats = subcats.filter(s => passNature(s) && passGroup(s) && passSpendType(s));
-
-  // Available spend types: cats that pass nature + group + subcat
-  const availSpendTypes = [...new Set(
-    categories.filter(c => passNature(c) && passGroup(c) && passSubcat(c) && c.spend_type).map(c => c.spend_type)
-  )].sort();
-
-  return { availNatures, availGroups, availSubcats, availSpendTypes };
+  return { availNatures, availGroups, availSubcats };
 }
 
 // Renders the cascading filter dropdown buttons
-function renderCascadingFilterDropdowns(cascOpts, filterNatures, filterGroups, filterSubcats, filterSpendTypes) {
-  const { availNatures, availGroups, availSubcats, availSpendTypes } = cascOpts;
+function renderCascadingFilterDropdowns(cascOpts, filterNatures, filterGroups, filterSubcats) {
+  const { availNatures, availGroups, availSubcats } = cascOpts;
 
   const mkDropdown = (id, label, selected, options, valueKey, labelFn) => {
     const count = selected.length;
@@ -1028,9 +1014,8 @@ function renderCascadingFilterDropdowns(cascOpts, filterNatures, filterGroups, f
   };
 
   return [
-    mkDropdown('nature',    'Nature',     filterNatures,    availNatures,    null,   null),
-    mkDropdown('group',     'Group',      filterGroups,     availGroups,     'id',   g => `${g.icon||''} ${g.name}`.trim()),
-    mkDropdown('subcat',    'Subcategory',filterSubcats,    availSubcats,    'id',   s => `${s.icon||''} ${s.name}`.trim()),
-    mkDropdown('spendtype', 'Spend type', filterSpendTypes, availSpendTypes, null,   null),
+    mkDropdown('nature', 'Nature',      filterNatures, availNatures, null, null),
+    mkDropdown('group',  'Group',       filterGroups,  availGroups,  'id', g => `${g.icon||''} ${g.name}`.trim()),
+    mkDropdown('subcat', 'Subcategory', filterSubcats, availSubcats, 'id', s => `${s.icon||''} ${s.name}`.trim()),
   ].join('');
 }

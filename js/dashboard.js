@@ -311,17 +311,17 @@ function openDashCustomize(state, sections) {
 
 // ── SPENDING BREAKDOWN ────────────────────────────────────────
 const NATURE_LABEL = {
-  savings: 'Savings', investment: 'Investments', debt_payment: 'Debt Payments',
-  income: 'Income', withdrawal: 'Withdrawal',
+  savings: 'Savings', investment: 'Investments', debt_payment: 'Debt',
+  income: 'Income',
 };
 const NATURE_COLORS = {
   'Income':        CLR.income,
-  'Debt Payments': CLR.debt,
+  'Debt':          CLR.debt,
   'Essentials':    '#b45309',
-  'Discretionary': '#f59e0b',
+  'Variables':     '#d97706bf',
+  'Discretionary': '#f59e0bbf',
   'Savings':       CLR.savings,
   'Investments':   CLR.invest,
-  'Withdrawal':    '#06b6d4',
 };
 const EXPENSE_TYPES = ['spend','savings','investment','debt_payment'];
 const ALL_TYPES     = ['income','spend','savings','investment','debt_payment','withdrawal'];

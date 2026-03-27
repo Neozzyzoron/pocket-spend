@@ -12,7 +12,7 @@ import {
 let filters = { search: '', status: 'all', type: '', category: '', account: '', person: '', month: '' };
 let editingId = null;
 let selectedIds = new Set();
-let viewMode = 'flat'; // flat | nature | group | sub | spend_type | tx_type
+let viewMode = 'flat'; // flat | nature | group | sub | tx_type
 
 const ALL_COLUMNS = [
   { id: 'date',          label: 'Date' },
@@ -20,7 +20,6 @@ const ALL_COLUMNS = [
   { id: 'parent_group',  label: 'Parent group' },
   { id: 'category',      label: 'Category' },
   { id: 'nature',        label: 'Nature' },
-  { id: 'spend_type',    label: 'Spend type' },
   { id: 'type',          label: 'Type' },
   { id: 'recurring',     label: 'Recurring' },
   { id: 'amount',        label: 'Amount' },
@@ -69,7 +68,6 @@ export function render(state) {
         <button class="toggle-group-btn tx-view-btn${viewMode==='nature'?' active':''}" data-view="nature">Nature</button>
         <button class="toggle-group-btn tx-view-btn${viewMode==='group'?' active':''}" data-view="group">Group</button>
         <button class="toggle-group-btn tx-view-btn${viewMode==='sub'?' active':''}" data-view="sub">Subcategory</button>
-        <button class="toggle-group-btn tx-view-btn${viewMode==='spend_type'?' active':''}" data-view="spend_type">Spend Type</button>
         <button class="toggle-group-btn tx-view-btn${viewMode==='tx_type'?' active':''}" data-view="tx_type">Transaction Type</button>
       </div>
     </div>
@@ -347,7 +345,6 @@ function renderRow(tx, state, cur, cols = DEFAULT_COLUMNS, runningBalMap = {}) {
     parent_group:    `<td class="text-sm text-muted">${group && cat?.parent_id ? escHtml((group.icon||'')+' '+group.name) : '—'}</td>`,
     category:        `<td class="text-sm">${cat ? escHtml((cat.icon||'')+' '+cat.name) : '—'}</td>`,
     nature:          `<td class="text-sm text-muted">${cat?.nature || '—'}</td>`,
-    spend_type:      `<td class="text-sm text-muted">${cat?.spend_type || '—'}</td>`,
     type:            `<td><span class="${typeBadgeClass(tx.type)}">${TX_TYPE_LABELS[tx.type] || tx.type}</span></td>`,
     recurring:       `<td class="text-sm text-muted">${tx.is_recurring ? '↻ ' + (tx.recur_freq || '') : '—'}</td>`,
     amount:          `<td class="amount-col text-mono ${isNeg ? 'negative' : 'positive'}">${isNeg ? '−' : '+'}${fmtCurrency(tx.amount, cur)}</td>`,
@@ -383,8 +380,10 @@ function renderGroupedRows(filtered, state, cur, cols, runningBalMap, colSpan) {
       return g ? (g.icon || '') + ' ' + g.name : 'Uncategorised';
     }
     if (viewMode === 'sub') return cat ? (cat.icon || '') + ' ' + cat.name : 'Uncategorised';
-    if (viewMode === 'spend_type') return cat?.spend_type || 'Uncategorised';
-    if (viewMode === 'tx_type') return TX_TYPE_LABELS[tx.type] || tx.type;
+    if (viewMode === 'tx_type') {
+      if (tx.type === 'savings' || tx.type === 'investment') return 'Savings & Investments';
+      return TX_TYPE_LABELS[tx.type] || tx.type;
+    }
     return '';
   }
 
@@ -463,7 +462,6 @@ function renderInlineEditRow(tx, state, cur, cols = DEFAULT_COLUMNS) {
     parent_group:    `<td class="text-sm text-muted">${group && cat?.parent_id ? escHtml((group.icon||'')+' '+group.name) : '—'}</td>`,
     category:        `<td>${needsCategory ? `<select class="form-select" id="ie-cat">${catOpts}</select>` : '<span class="text-muted text-sm">—</span>'}</td>`,
     nature:          `<td class="text-sm text-muted">${cat?.nature || '—'}</td>`,
-    spend_type:      `<td class="text-sm text-muted">${cat?.spend_type || '—'}</td>`,
     type:            `<td>${typeSelect}</td>`,
     recurring:       `<td class="text-sm text-muted">${tx.is_recurring ? '↻' : '—'}</td>`,
     amount:          `<td class="amount-col"><input class="form-input text-mono" type="number" id="ie-amt" value="${tx.amount}" step="0.01" style="text-align:right" /></td>`,
