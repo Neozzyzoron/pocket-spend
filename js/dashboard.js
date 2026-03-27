@@ -33,13 +33,13 @@ function crossHatch(color) {
 
 // Shared color palette — used consistently across tiles, charts, nature breakdown
 const CLR = {
-  income:  '#22c55e',
-  spend:   '#ef4444',
-  debt:    '#dc2626',
-  savings: '#3b82f6',
-  invest:  '#8b5cf6',
-  balance: '#f59e0b',
-  neutral: '#6b7280',
+  income:  '#22c55ea6',
+  spend:   '#ef4444a6',
+  debt:    '#dc2626a6',
+  savings: '#3b82f6a6',
+  invest:  '#8b5cf6a6',
+  balance: '#f59e0ba6',
+  neutral: '#6b7280a6',
 };
 
 // ── MAIN RENDER ───────────────────────────────────────────────
@@ -483,11 +483,11 @@ function renderStackedBarPanel(canvasId, incomeRows, expenseRows, savingsNet, in
     ];
     if (savingsNet !== 0) datasets.push({
       label: 'Savings', data: pad(savingsNet, 2),
-      backgroundColor: CLR.savings + 'a6', borderWidth: 0, borderRadius: 4,
+      backgroundColor: CLR.savings, borderWidth: 0, borderRadius: 4,
     });
     if (investNet !== 0) datasets.push({
       label: 'Investments', data: pad(investNet, 2),
-      backgroundColor: CLR.invest + 'a6', borderWidth: 0, borderRadius: 4,
+      backgroundColor: CLR.invest, borderWidth: 0, borderRadius: 4,
     });
 
     const totals = { Income: incomeTotal, Spend: expenseTotal, 'Savings & Inv.': savingsNet + investNet };
@@ -615,13 +615,13 @@ function drawCashflowChart(state, cur) {
     data: {
       labels,
       datasets: [
-        { label: 'Income',                    data: incomeData,     backgroundColor: CLR.income  + 'a6' },
-        { label: 'Spend',                     data: spendData,      backgroundColor: CLR.spend   + 'a6' },
-        { label: 'Net Savings & Investments', data: netSavingsData, backgroundColor: CLR.savings + 'a6' },
+        { label: 'Income',                    data: incomeData,     backgroundColor: CLR.income  },
+        { label: 'Spend',                     data: spendData,      backgroundColor: CLR.spend   },
+        { label: 'Net Savings & Investments', data: netSavingsData, backgroundColor: CLR.savings },
         {
           label: 'Balance',
           data: balanceData,
-          backgroundColor: crossHatch(CLR.balance + 'a6'),
+          backgroundColor: crossHatch(CLR.balance),
           borderWidth: 0, borderRadius: 4,
         },
       ],
