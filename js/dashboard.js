@@ -168,13 +168,14 @@ function computeStats(state, period) {
   const due_count  = duePending.length;
   const due_amount = duePending.reduce((s, tx) => s + Number(tx.amount), 0);
   const period_net    = income - total_expenses;
+  const incl_savings  = period_net + (saved - savings_withdrawn);
   const expected_eop  = period_net - due_amount;
 
   const daysElapsed = Math.max(1, Math.floor((today - start) / 86400000) + 1);
   const dailySpend = spending / daysElapsed;
   const runway = dailySpend > 0 ? period_net / dailySpend : null;
 
-  return { income, income_fixed, income_extra,
+  return { income, income_fixed, income_extra, incl_savings,
            total_expenses, direct_spend, debt_payments, period_net,
            spending, saved, invested, withdrawn,
            net_balance, net_worth, total_debt,
@@ -187,7 +188,7 @@ function computeStats(state, period) {
 function renderSummaryTiles(stats, cur) {
   const {
     income, income_fixed, income_extra,
-    total_expenses, direct_spend, debt_payments, period_net,
+    total_expenses, direct_spend, debt_payments, period_net, incl_savings,
     net_worth,
     savings_balance, saved, savings_withdrawn,
     investment_balance, invested, investment_withdrawn,
@@ -246,6 +247,7 @@ function renderSummaryTiles(stats, cur) {
       <div class="card-title text-sm" style="color:${CLR.neutral}">Net Balance</div>
       <div class="card-value text-mono" style="color:${netColor}">${fmtCurrency(period_net, cur)}</div>
       <div style="margin-top:.5rem;padding-top:.4rem;border-top:1px solid var(--border);display:flex;flex-direction:column;gap:.15rem">
+        ${subColored('Incl. savings', incl_savings, incl_savings >= 0 ? CLR.income : CLR.spend, CLR.neutral)}
         ${sub('Net worth', net_worth, CLR.neutral)}
       </div>
     </div>`,
