@@ -329,44 +329,74 @@ const NATURE_LABEL = {
   savings: 'Savings', investment: 'Investments', debt_payment: 'Debt Payments',
   income: 'Income', withdrawal: 'Withdrawal',
 };
+const NATURE_COLORS = {
+  'Income':        '#22c55e',
+  'Debt Payments': '#ef4444',
+  'Essentials':    '#c2410c',
+  'Discretionary': '#f59e0b',
+  'Savings':       '#3b82f6',
+  'Investments':   '#a855f7',
+  'Withdrawal':    '#06b6d4',
+};
 const EXPENSE_TYPES = ['spend','savings','investment','debt_payment'];
 const ALL_TYPES     = ['income','spend','savings','investment','debt_payment','withdrawal'];
 
+function rowColor(row, i) {
+  return row[2] || CHART_COLORS[i % CHART_COLORS.length];
+}
+
+// Returns [name, amount, color|null] tuples
 function buildRows(txList, view, categories) {
   if (view === 'nature') {
-    const map = {};
+    const map = {}, colorMap = {};
     for (const tx of txList) {
       const key = NATURE_LABEL[tx.type] || (categories.find(c => c.id === tx.category_id)?.nature) || 'Uncategorised';
       map[key] = (map[key] || 0) + Number(tx.amount);
+      if (!colorMap[key]) colorMap[key] = NATURE_COLORS[key] || null;
     }
-    return Object.entries(map).sort((a,b) => b[1]-a[1]);
+    return Object.entries(map).sort((a,b) => b[1]-a[1]).map(([n,v]) => [n, v, colorMap[n]]);
   }
   if (view === 'group') {
-    const map = {};
+    const map = {}, colorMap = {};
     for (const tx of txList) {
       const cat = categories.find(c => c.id === tx.category_id);
-      const key = cat
-        ? (() => { const g = cat.parent_id ? (categories.find(c => c.id === cat.parent_id) || cat) : cat; return `${g.icon||''} ${g.name}`.trim(); })()
-        : (NATURE_LABEL[tx.type] || 'Uncategorised');
+      let key, color;
+      if (cat) {
+        const g = cat.parent_id ? (categories.find(c => c.id === cat.parent_id) || cat) : cat;
+        key = `${g.icon||''} ${g.name}`.trim();
+        color = g.color || null;
+      } else {
+        key = NATURE_LABEL[tx.type] || 'Uncategorised';
+        color = NATURE_COLORS[key] || null;
+      }
       map[key] = (map[key] || 0) + Number(tx.amount);
+      if (color && !colorMap[key]) colorMap[key] = color;
     }
-    return Object.entries(map).sort((a,b) => b[1]-a[1]);
+    return Object.entries(map).sort((a,b) => b[1]-a[1]).map(([n,v]) => [n, v, colorMap[n] || null]);
   }
   if (view === 'all') {
     return txList.sort((a,b) => b.amount - a.amount).map(tx => {
       const cat = categories.find(c => c.id === tx.category_id);
       const name = `${tx.description || ''}${cat ? ' · '+(cat.icon||'')+' '+cat.name : ''}`.trim();
-      return [name || '—', Number(tx.amount)];
+      return [name || '—', Number(tx.amount), null];
     });
   }
   // subcategory
-  const map = {};
+  const map = {}, colorMap = {};
   for (const tx of txList) {
     const cat = categories.find(c => c.id === tx.category_id);
-    const key = cat ? `${cat.icon||''} ${cat.name}`.trim() : (NATURE_LABEL[tx.type] || 'Uncategorised');
+    let key, color;
+    if (cat) {
+      key = `${cat.icon||''} ${cat.name}`.trim();
+      color = cat.color || null;
+    } else {
+      key = NATURE_LABEL[tx.type] || 'Uncategorised';
+      color = NATURE_COLORS[key] || null;
+    }
     map[key] = (map[key] || 0) + Number(tx.amount);
+    if (color && !colorMap[key]) colorMap[key] = color;
   }
-  return Object.entries(map).sort((a,b) => b[1]-a[1]);
+  return Object.entries(map).sort((a,b) => b[1]-a[1]).map(([n,v]) => [n, v, colorMap[n] || null]);
 }
 
 function renderPanel(html, canvasId, rows, total, cur, getChart, setChart) {
@@ -376,7 +406,7 @@ function renderPanel(html, canvasId, rows, total, cur, getChart, setChart) {
     if (!canvas || !window.Chart) return;
     const existing = getChart();
     if (existing) { existing.destroy(); }
-    const colors = rows.map((_, i) => CHART_COLORS[i % CHART_COLORS.length]);
+    const colors = rows.map((row, i) => rowColor(row, i));
     setChart(new Chart(canvas, {
       type: 'doughnut',
       data: {
@@ -387,7 +417,10 @@ function renderPanel(html, canvasId, rows, total, cur, getChart, setChart) {
         responsive: true, maintainAspectRatio: false, cutout: '65%',
         plugins: {
           legend: { display: false },
-          tooltip: { callbacks: { label: ctx => ` ${ctx.label}: ${fmtCurrency(ctx.raw, cur)} (${(ctx.raw/total*100).toFixed(1)}%)` }},
+          tooltip: {
+            bodyFont: { family: 'DM Sans, sans-serif' },
+            callbacks: { label: ctx => ` ${ctx.label}: ${fmtCurrency(ctx.raw, cur)} (${(ctx.raw/total*100).toFixed(1)}%)` },
+          },
         },
       },
     }));
@@ -395,16 +428,19 @@ function renderPanel(html, canvasId, rows, total, cur, getChart, setChart) {
 }
 
 function panelHtml(rows, total, cur, canvasId) {
-  const colors = rows.map((_, i) => CHART_COLORS[i % CHART_COLORS.length]);
   return `<div style="display:flex;align-items:center;gap:1rem;padding:.75rem;flex-wrap:wrap">
     <div style="position:relative;width:160px;height:160px;flex-shrink:0"><canvas id="${canvasId}"></canvas></div>
     <div style="flex:1;min-width:150px;display:flex;flex-direction:column">
-      ${rows.map(([name,amt],i) => `<div style="display:flex;align-items:center;gap:.5rem;padding:.35rem 0;border-bottom:1px solid var(--border)">
-          <span style="width:8px;height:8px;border-radius:50%;background:${colors[i]};flex-shrink:0"></span>
+      ${rows.map((row, i) => {
+        const [name, amt] = row;
+        const c = rowColor(row, i);
+        return `<div style="display:flex;align-items:center;gap:.5rem;padding:.35rem 0;border-bottom:1px solid var(--border)">
+          <span style="width:8px;height:8px;border-radius:50%;background:${c};flex-shrink:0"></span>
           <span class="text-sm" style="flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${escHtml(name)}">${escHtml(name)}</span>
           <span class="text-mono text-sm">${fmtCurrency(amt,cur)}</span>
           <span class="text-muted" style="font-size:.65rem;width:3rem;text-align:right">${(amt/total*100).toFixed(1)}%</span>
-        </div>`).join('')}
+        </div>`;
+      }).join('')}
       <div style="display:flex;justify-content:space-between;padding:.4rem 0;font-weight:600;font-size:.8rem">
         <span>Total</span><span class="text-mono">${fmtCurrency(total,cur)}</span>
       </div>
