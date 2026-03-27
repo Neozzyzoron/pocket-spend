@@ -19,6 +19,18 @@ const CHART_COLORS = [
   '#06b6d4','#f97316','#ec4899','#84cc16','#6366f1',
 ];
 
+// Cross-hatch canvas pattern for balance bar
+function crossHatch(color) {
+  const sz = 8;
+  const c = document.createElement('canvas');
+  c.width = sz; c.height = sz;
+  const ctx = c.getContext('2d');
+  ctx.strokeStyle = color; ctx.lineWidth = 1.2;
+  ctx.beginPath(); ctx.moveTo(0,0); ctx.lineTo(sz,sz); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(sz,0); ctx.lineTo(0,sz); ctx.stroke();
+  return ctx.createPattern(c, 'repeat');
+}
+
 // Shared color palette — used consistently across tiles, charts, nature breakdown
 const CLR = {
   income:  '#22c55e',
@@ -226,6 +238,7 @@ function renderSummaryTiles(stats, cur) {
       <div style="margin-top:.5rem;padding-top:.4rem;border-top:1px solid var(--border);display:flex;flex-direction:column;gap:.15rem">
         ${sub('Direct spend', direct_spend, CLR.spend)}
         ${sub('Debt pmts', debt_payments, CLR.debt)}
+        ${sub('Total debt', total_debt, CLR.debt)}
       </div>
     </div>`,
 
@@ -265,16 +278,9 @@ function renderSummaryTiles(stats, cur) {
       </div>
     </div>`,
 
-    `<div class="card card-sm" style="border-left:3px solid ${CLR.debt}">
-      <div class="card-title text-sm" style="color:${CLR.debt}">Debt Payments</div>
-      <div class="card-value text-mono" style="color:${CLR.debt}">${fmtCurrency(debt_payments, cur)}</div>
-      <div style="margin-top:.5rem;padding-top:.4rem;border-top:1px solid var(--border);display:flex;flex-direction:column;gap:.15rem">
-        ${sub('Total debt', total_debt, CLR.debt)}
-      </div>
-    </div>`,
   ];
 
-  return `<div class="stat-grid" style="grid-template-columns:repeat(4,1fr)">${tiles.join('')}</div>`;
+  return `<div class="stat-grid" style="grid-template-columns:repeat(3,1fr)">${tiles.join('')}</div>`;
 }
 
 // ── DASHBOARD CUSTOMIZE ───────────────────────────────────────
@@ -402,7 +408,7 @@ function renderPanel(html, canvasId, rows, total, cur, getChart, setChart) {
     const existing = getChart();
     if (existing) { existing.destroy(); }
     const colors = rows.map((row, i) => rowColor(row, i));
-    const colorsOpaque = colors.map(c => c.length === 7 ? c + '99' : c);
+    const colorsOpaque = colors;
     setChart(new Chart(canvas, {
       type: 'doughnut',
       data: {
@@ -457,7 +463,7 @@ function renderStackedBarPanel(canvasId, incomeRows, expenseRows, savingsNet, in
 
     const incomeTotal  = incomeRows.reduce((s, r) => s + r[1], 0);
     const expenseTotal = expenseRows.reduce((s, r) => s + r[1], 0);
-    const toColor = (row, i) => { const c = rowColor(row, i); return c.length === 7 ? c + '99' : c; };
+    const toColor = (row, i) => rowColor(row, i);
 
     const hasSavInv = savingsNet !== 0 || investNet !== 0;
     const labels = ['Income', 'Spend'];
@@ -477,11 +483,11 @@ function renderStackedBarPanel(canvasId, incomeRows, expenseRows, savingsNet, in
     ];
     if (savingsNet !== 0) datasets.push({
       label: 'Savings', data: pad(savingsNet, 2),
-      backgroundColor: CLR.savings + '99', borderWidth: 0, borderRadius: 4,
+      backgroundColor: CLR.savings, borderWidth: 0, borderRadius: 4,
     });
     if (investNet !== 0) datasets.push({
       label: 'Investments', data: pad(investNet, 2),
-      backgroundColor: CLR.invest + '99', borderWidth: 0, borderRadius: 4,
+      backgroundColor: CLR.invest, borderWidth: 0, borderRadius: 4,
     });
 
     const totals = { Income: incomeTotal, Spend: expenseTotal, 'Savings & Inv.': savingsNet + investNet };
@@ -579,7 +585,7 @@ function drawCashflowChart(state, cur) {
   const { transactions, profiles } = state;
   const pa = profiles[0]?.preferences?.salary_day;
   const pb = profiles[1]?.preferences?.salary_day;
-  const periods = getPeriods(App.cycleMode(), { salary_day_a: pa, salary_day_b: pb }, 6);
+  const periods = getPeriods(App.cycleMode(), { salary_day_a: pa, salary_day_b: pb }, 3);
 
   const activeAcc  = state.accounts.filter(a => !a.is_archived);
   const savingsIds = new Set(activeAcc.filter(a => effectiveType(a) === 'savings').map(a => a.id));
@@ -609,13 +615,13 @@ function drawCashflowChart(state, cur) {
     data: {
       labels,
       datasets: [
-        { label: 'Income',                    data: incomeData,     backgroundColor: CLR.income  + '99' },
-        { label: 'Spend',                     data: spendData,      backgroundColor: CLR.spend   + '99' },
-        { label: 'Net Savings & Investments', data: netSavingsData, backgroundColor: CLR.savings + '99' },
+        { label: 'Income',                    data: incomeData,     backgroundColor: CLR.income  },
+        { label: 'Spend',                     data: spendData,      backgroundColor: CLR.spend   },
+        { label: 'Net Savings & Investments', data: netSavingsData, backgroundColor: CLR.savings },
         {
           label: 'Balance',
           data: balanceData,
-          backgroundColor: CLR.balance + '99',
+          backgroundColor: crossHatch(CLR.balance),
           borderWidth: 0, borderRadius: 4,
         },
       ],
