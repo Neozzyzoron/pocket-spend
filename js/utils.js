@@ -389,7 +389,7 @@ export function calcAccountBalance(account, transactions) {
 
     const amt = Number(tx.amount);
     if (isLoan) {
-      if (isSource && tx.type === 'debt_payment') bal -= amt; // payment reduces debt
+      if (isDest && tx.type === 'debt_payment') bal += amt; // payment arrives at loan → reduces outstanding balance
       // loan doesn't receive transfers normally
     } else {
       if (isSource) {
