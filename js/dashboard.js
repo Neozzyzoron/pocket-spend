@@ -53,6 +53,7 @@ export function render(state) {
         </div>
       </div>
       <div id="breakdown-rows" style="display:flex;gap:1rem;flex-wrap:wrap"></div>
+    </div>` : ''}
 
     ${sections.cashflow ? `<div class="section">
       <div class="section-header">
