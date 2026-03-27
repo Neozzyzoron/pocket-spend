@@ -534,7 +534,7 @@ function renderBreakdownRows(state, period, cur, view) {
 
   const inPeriod = (tx) => isEffective(tx) && parseISO(tx.date) >= start && parseISO(tx.date) <= end;
   const periodTx  = transactions.filter(inPeriod);
-  const expenseTx = periodTx.filter(tx => EXPENSE_TYPES.includes(tx.type));
+  const expenseTx = periodTx.filter(tx => tx.type === 'spend' || tx.type === 'debt_payment');
 
   const expenseTotal = expenseTx.reduce((s,tx) => s + Number(tx.amount), 0);
 
