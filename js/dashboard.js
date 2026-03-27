@@ -201,24 +201,21 @@ function renderSummaryTiles(stats, cur) {
   const mode = App.cycleMode();
   const dueLabel = mode === 'month' ? 'Due till end of month' : 'Due till next cycle';
 
-  function sub(label, value, color) {
-    const c = color || 'var(--text2)';
-    const op = color ? ';opacity:.65' : '';
-    return `<div style="display:flex;justify-content:space-between;font-size:.8rem;color:${c}${op}">
+  const subStyle = 'display:flex;justify-content:space-between;font-size:1.2rem;color:var(--text2)';
+  function sub(label, value) {
+    return `<div style="${subStyle}">
       <span>${label}</span><span class="text-mono">${fmtCurrency(value, cur)}</span>
     </div>`;
   }
-  function subColored(label, value, valueColor, tileColor) {
-    const lc = tileColor ? `color:${tileColor};opacity:.65` : 'color:var(--text2)';
-    return `<div style="display:flex;justify-content:space-between;font-size:.8rem">
-      <span style="${lc}">${label}</span>
+  function subColored(label, value, valueColor) {
+    return `<div style="${subStyle}">
+      <span>${label}</span>
       <span class="text-mono" style="color:${valueColor}">${fmtCurrency(value, cur)}</span>
     </div>`;
   }
-  function subText(label, text, valueColor, tileColor) {
-    const lc = tileColor ? `color:${tileColor};opacity:.65` : 'color:var(--text2)';
-    return `<div style="display:flex;justify-content:space-between;font-size:.8rem">
-      <span style="${lc}">${label}</span>
+  function subText(label, text, valueColor) {
+    return `<div style="${subStyle}">
+      <span>${label}</span>
       <span class="text-mono" style="color:${valueColor || 'var(--text2)'}">${text}</span>
     </div>`;
   }
@@ -228,8 +225,8 @@ function renderSummaryTiles(stats, cur) {
       <div class="card-title text-sm" style="color:${CLR.income}">Income</div>
       <div class="card-value text-mono" style="color:${CLR.income}">${fmtCurrency(income, cur)}</div>
       <div style="margin-top:.5rem;padding-top:.4rem;border-top:1px solid var(--border);display:flex;flex-direction:column;gap:.15rem">
-        ${sub('Fixed', income_fixed, CLR.income)}
-        ${sub('Extra', income_extra, CLR.income)}
+        ${sub('Fixed', income_fixed)}
+        ${sub('Extra', income_extra)}
       </div>
     </div>`,
 
@@ -237,9 +234,8 @@ function renderSummaryTiles(stats, cur) {
       <div class="card-title text-sm" style="color:${CLR.spend}">Spend</div>
       <div class="card-value text-mono" style="color:${CLR.spend}">${fmtCurrency(total_expenses, cur)}</div>
       <div style="margin-top:.5rem;padding-top:.4rem;border-top:1px solid var(--border);display:flex;flex-direction:column;gap:.15rem">
-        ${sub('Direct spend', direct_spend, CLR.spend)}
-        ${sub('Debt pmts', debt_payments, CLR.debt)}
-        ${sub('Total debt', total_debt, CLR.debt)}
+        ${sub('Direct spend', direct_spend)}
+        ${sub('Debt pmts', debt_payments)}
       </div>
     </div>`,
 
@@ -247,8 +243,8 @@ function renderSummaryTiles(stats, cur) {
       <div class="card-title text-sm" style="color:${CLR.neutral}">Net Balance</div>
       <div class="card-value text-mono" style="color:${netColor}">${fmtCurrency(period_net, cur)}</div>
       <div style="margin-top:.5rem;padding-top:.4rem;border-top:1px solid var(--border);display:flex;flex-direction:column;gap:.15rem">
-        ${subColored('Incl. savings', incl_savings, incl_savings >= 0 ? CLR.income : CLR.spend, CLR.neutral)}
-        ${sub('Net worth', net_worth, CLR.neutral)}
+        ${subColored('Incl. savings', incl_savings, incl_savings >= 0 ? CLR.income : CLR.spend)}
+        ${sub('Net worth', net_worth)}
       </div>
     </div>`,
 
@@ -256,9 +252,8 @@ function renderSummaryTiles(stats, cur) {
       <div class="card-title text-sm" style="color:${CLR.neutral}">${dueLabel}</div>
       <div class="card-value text-mono" style="color:${CLR.neutral}">${fmtCurrency(due_amount, cur)}</div>
       <div style="margin-top:.5rem;padding-top:.4rem;border-top:1px solid var(--border);display:flex;flex-direction:column;gap:.15rem">
-        ${subText('Transactions due', `${due_count} tx`, 'var(--text2)', CLR.neutral)}
-        ${subColored('Exp. balance', expected_eop, eopColor, CLR.neutral)}
-        ${runway !== null ? subText('Runway', `${Math.round(runway)}d`, runway > 14 ? CLR.income : runway > 7 ? CLR.balance : CLR.spend, CLR.neutral) : ''}
+        ${subColored('Exp. balance', expected_eop, eopColor)}
+        ${runway !== null ? subText('Runway', `${Math.round(runway)}d`, runway > 14 ? CLR.income : runway > 7 ? CLR.balance : CLR.spend) : ''}
       </div>
     </div>`,
 
@@ -266,8 +261,8 @@ function renderSummaryTiles(stats, cur) {
       <div class="card-title text-sm" style="color:${CLR.savings}">Savings</div>
       <div class="card-value text-mono" style="color:${CLR.savings}">${fmtCurrency(savings_balance, cur)}</div>
       <div style="margin-top:.5rem;padding-top:.4rem;border-top:1px solid var(--border);display:flex;flex-direction:column;gap:.15rem">
-        ${sub('Contributed', saved, CLR.savings)}
-        ${sub('Withdrawn', savings_withdrawn, CLR.savings)}
+        ${sub('Contributed', saved)}
+        ${sub('Withdrawn', savings_withdrawn)}
       </div>
     </div>`,
 
@@ -275,8 +270,8 @@ function renderSummaryTiles(stats, cur) {
       <div class="card-title text-sm" style="color:${CLR.invest}">Investments</div>
       <div class="card-value text-mono" style="color:${CLR.invest}">${fmtCurrency(investment_balance, cur)}</div>
       <div style="margin-top:.5rem;padding-top:.4rem;border-top:1px solid var(--border);display:flex;flex-direction:column;gap:.15rem">
-        ${sub('Contributed', invested, CLR.invest)}
-        ${sub('Withdrawn', investment_withdrawn, CLR.invest)}
+        ${sub('Contributed', invested)}
+        ${sub('Withdrawn', investment_withdrawn)}
       </div>
     </div>`,
 
