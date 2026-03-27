@@ -560,6 +560,8 @@ function renderBreakdownRows(state, period, cur, view) {
     return;
   }
 
+  const expenseRows = expenseTotal > 0 ? buildRows(expenseTx, view, categories) : [];
+
   container.innerHTML = `
     <div class="card" style="flex:1;min-width:280px;padding:0">
       <div style="padding:.6rem 1rem .3rem;font-weight:600;font-size:.8rem;color:var(--text2);border-bottom:1px solid var(--border)">Expenses</div>
