@@ -449,24 +449,40 @@ function panelHtml(rows, total, cur, canvasId) {
   </div>`;
 }
 
-function barPanelHtml(rows, canvasId) {
-  const h = Math.max(180, rows.length * 32);
-  return `<div style="position:relative;height:${h}px;padding:.75rem"><canvas id="${canvasId}"></canvas></div>`;
+function stackedBarPanelHtml(canvasId) {
+  return `<div style="position:relative;height:120px;padding:.75rem"><canvas id="${canvasId}"></canvas></div>`;
 }
 
-function renderBarPanel(canvasId, rows, total, cur, getChart, setChart) {
+function renderStackedBarPanel(canvasId, incomeRows, expenseRows, cur, getChart, setChart) {
   setTimeout(() => {
     const canvas = document.getElementById(canvasId);
     if (!canvas || !window.Chart) return;
     const existing = getChart();
-    if (existing) { existing.destroy(); }
-    const colors = rows.map((row, i) => rowColor(row, i)).map(c => c.length === 7 ? c + '99' : c);
+    if (existing) existing.destroy();
+
+    const incomeTotal  = incomeRows.reduce((s, r) => s + r[1], 0);
+    const expenseTotal = expenseRows.reduce((s, r) => s + r[1], 0);
+
+    const toColor = (row, i) => { const c = rowColor(row, i); return c.length === 7 ? c + '99' : c; };
+
+    const datasets = [
+      ...incomeRows.map((row, i) => ({
+        label: row[0],
+        data: [row[1], 0],
+        backgroundColor: toColor(row, i),
+        borderWidth: 0, borderRadius: 4,
+      })),
+      ...expenseRows.map((row, i) => ({
+        label: row[0],
+        data: [0, row[1]],
+        backgroundColor: toColor(row, i + incomeRows.length),
+        borderWidth: 0, borderRadius: 4,
+      })),
+    ];
+
     setChart(new Chart(canvas, {
       type: 'bar',
-      data: {
-        labels: rows.map(([name]) => name),
-        datasets: [{ data: rows.map(([,amt]) => amt), backgroundColor: colors, borderWidth: 0, borderRadius: 4 }],
-      },
+      data: { labels: ['Income', 'Expenses'], datasets },
       options: {
         indexAxis: 'y',
         responsive: true, maintainAspectRatio: false,
@@ -474,15 +490,24 @@ function renderBarPanel(canvasId, rows, total, cur, getChart, setChart) {
           legend: { display: false },
           tooltip: {
             bodyFont: { family: 'DM Sans, sans-serif' },
-            callbacks: { label: ctx => ` ${fmtCurrency(ctx.raw, cur)} (${(ctx.raw/total*100).toFixed(1)}%)` },
+            callbacks: {
+              label: ctx => ctx.raw > 0 ? ` ${ctx.dataset.label}: ${fmtCurrency(ctx.raw, cur)}` : null,
+              footer: items => {
+                const total = items[0]?.label === 'Income' ? incomeTotal : expenseTotal;
+                return `Total: ${fmtCurrency(total, cur)}`;
+              },
+            },
+            filter: item => item.raw > 0,
           },
         },
         scales: {
           x: {
+            stacked: true,
             ticks: { color: '#8b90a8', font: { family: 'DM Sans' }, callback: v => fmtCurrency(v, cur) },
             grid: { color: '#2a2e3f40' },
           },
           y: {
+            stacked: true,
             ticks: { color: '#8b90a8', font: { family: 'DM Sans' } },
             grid: { display: false },
           },
@@ -511,8 +536,12 @@ function renderBreakdownRows(state, period, cur, view) {
     return;
   }
 
-  const expenseRows = expenseTotal > 0 ? buildRows(expenseTx, view, categories) : [];
-  const allRows     = allTotal > 0     ? buildRows(allTx,     view, categories) : [];
+  const expenseRows  = expenseTotal > 0 ? buildRows(expenseTx, view, categories) : [];
+  const allIncomeTx  = allTx.filter(tx => tx.type === 'income');
+  const allExpTx     = allTx.filter(tx => tx.type !== 'income');
+  const allIncomeRows = allIncomeTx.length > 0 ? buildRows(allIncomeTx, view, categories) : [];
+  const allExpRows    = allExpTx.length    > 0 ? buildRows(allExpTx,    view, categories) : [];
+  const hasAllTx = allIncomeRows.length > 0 || allExpRows.length > 0;
 
   container.innerHTML = `
     <div class="card" style="flex:1;min-width:280px;padding:0">
@@ -521,11 +550,11 @@ function renderBreakdownRows(state, period, cur, view) {
     </div>
     <div class="card" style="flex:1;min-width:280px;padding:0">
       <div style="padding:.6rem 1rem .3rem;font-weight:600;font-size:.8rem;color:var(--text2);border-bottom:1px solid var(--border)">All Transactions</div>
-      ${allRows.length ? barPanelHtml(allRows, 'alltx-canvas') : '<div class="empty-state" style="padding:1.5rem">No transactions</div>'}
+      ${hasAllTx ? stackedBarPanelHtml('alltx-canvas') : '<div class="empty-state" style="padding:1.5rem">No transactions</div>'}
     </div>`;
 
   if (expenseRows.length) renderPanel('', 'breakdown-canvas', expenseRows, expenseTotal, cur, () => breakdownChart, c => { breakdownChart = c; });
-  if (allRows.length)     renderBarPanel('alltx-canvas', allRows, allTotal, cur, () => allTxChart, c => { allTxChart = c; });
+  if (hasAllTx) renderStackedBarPanel('alltx-canvas', allIncomeRows, allExpRows, cur, () => allTxChart, c => { allTxChart = c; });
 }
 
 // ── CASHFLOW CHART ────────────────────────────────────────────
