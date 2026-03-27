@@ -211,9 +211,9 @@ function renderSummaryTiles(stats, cur) {
       </div>
     </div>`,
 
-    // Expenses — dark orange
+    // Spend — dark orange
     `<div class="card card-sm" style="border-left:3px solid #c2410c">
-      <div class="card-title text-sm" style="color:#c2410c">Expenses</div>
+      <div class="card-title text-sm" style="color:#c2410c">Spend</div>
       <div class="card-value text-mono" style="color:#c2410c">${fmtCurrency(total_expenses, cur)}</div>
       <div style="margin-top:.5rem;padding-top:.4rem;border-top:1px solid var(--border);display:flex;flex-direction:column;gap:.15rem">
         ${sub('Direct spend', direct_spend, '#c2410c')}
@@ -456,7 +456,7 @@ function renderStackedBarPanel(canvasId, incomeRows, expenseRows, savingsNet, in
     const expenseTotal = expenseRows.reduce((s, r) => s + r[1], 0);
     const toColor = (row, i) => { const c = rowColor(row, i); return c.length === 7 ? c + '99' : c; };
 
-    const labels = ['Income', 'Expenses'];
+    const labels = ['Income', 'Spend'];
     if (savingsNet !== 0) labels.push('Savings');
     if (investNet  !== 0) labels.push('Investments');
     const n = labels.length;
@@ -481,7 +481,7 @@ function renderStackedBarPanel(canvasId, incomeRows, expenseRows, savingsNet, in
       backgroundColor: '#a855f799', borderWidth: 0, borderRadius: 4,
     });
 
-    const totals = { Income: incomeTotal, Expenses: expenseTotal, Savings: savingsNet, Investments: investNet };
+    const totals = { Income: incomeTotal, Spend: expenseTotal, Savings: savingsNet, Investments: investNet };
 
     setChart(new Chart(canvas, {
       type: 'bar',
@@ -556,7 +556,7 @@ function renderBreakdownRows(state, period, cur, view) {
 
   container.innerHTML = `
     <div class="card" style="flex:1;min-width:280px;padding:0">
-      <div style="padding:.6rem 1rem .3rem;font-weight:600;font-size:.8rem;color:var(--text2);border-bottom:1px solid var(--border)">Expenses</div>
+      <div style="padding:.6rem 1rem .3rem;font-weight:600;font-size:.8rem;color:var(--text2);border-bottom:1px solid var(--border)">Spend</div>
       ${expenseRows.length ? panelHtml(expenseRows, expenseTotal, cur, 'breakdown-canvas') : '<div class="empty-state" style="padding:1.5rem">No expenses</div>'}
     </div>
     <div class="card" style="flex:1;min-width:280px;padding:0">
@@ -582,8 +582,10 @@ function drawCashflowChart(state, cur) {
   const savingsIds = new Set(activeAcc.filter(a => effectiveType(a) === 'savings').map(a => a.id));
   const investIds  = new Set(activeAcc.filter(a => effectiveType(a) === 'investment').map(a => a.id));
 
+  const liquidAcc = activeAcc.filter(a => isLiquid(a));
+
   const labels = periods.map(p => p.label);
-  const incomeData = [], spendData = [], netSavingsData = [];
+  const incomeData = [], spendData = [], netSavingsData = [], balanceData = [];
 
   for (const p of periods) {
     const ptx = transactions.filter(tx =>
@@ -592,9 +594,12 @@ function drawCashflowChart(state, cur) {
     const sum = type => ptx.filter(t => t.type === type).reduce((s,t) => s + Number(t.amount), 0);
     incomeData.push(sum('income'));
     spendData.push(sum('spend') + sum('debt_payment'));
-    const savingsWithdrawn = ptx.filter(t => t.type === 'withdrawal' && (savingsIds.has(t.account_id) || investIds.has(t.account_id)))
+    const withdrawn = ptx.filter(t => t.type === 'withdrawal' && (savingsIds.has(t.account_id) || investIds.has(t.account_id)))
       .reduce((s,t) => s + Number(t.amount), 0);
-    netSavingsData.push(sum('savings') + sum('investment') - savingsWithdrawn);
+    netSavingsData.push(sum('savings') + sum('investment') - withdrawn);
+    // end-of-period liquid balance: all transactions up to period end
+    const txToDate = transactions.filter(tx => parseISO(tx.date) <= p.end);
+    balanceData.push(liquidAcc.reduce((s, a) => s + calcAccountBalance(a, txToDate), 0));
   }
 
   if (cashflowChart) { cashflowChart.destroy(); cashflowChart = null; }
@@ -604,9 +609,16 @@ function drawCashflowChart(state, cur) {
     data: {
       labels,
       datasets: [
-        { label: 'Income',      data: incomeData,     backgroundColor: '#22c55e99' },
-        { label: 'Expenses',    data: spendData,      backgroundColor: '#ef444499' },
-        { label: 'Net Savings', data: netSavingsData, backgroundColor: '#3b82f699' },
+        { label: 'Income',                    data: incomeData,     backgroundColor: '#22c55e99' },
+        { label: 'Spend',                     data: spendData,      backgroundColor: '#ef444499' },
+        { label: 'Net Savings & Investments', data: netSavingsData, backgroundColor: '#3b82f699' },
+        {
+          type: 'line', label: 'Balance',
+          data: balanceData,
+          borderColor: '#f59e0bcc', backgroundColor: 'transparent',
+          borderWidth: 2, pointRadius: 3, pointBackgroundColor: '#f59e0b',
+          tension: 0.3, yAxisID: 'y2',
+        },
       ],
     },
     options: {
@@ -614,13 +626,18 @@ function drawCashflowChart(state, cur) {
       maintainAspectRatio: false,
       plugins: {
         legend: { labels: { color: '#8b90a8', font: { family: 'DM Sans' } } },
-        tooltip: { callbacks: { label: ctx => ` ${fmtCurrency(ctx.raw, cur)}` } },
+        tooltip: { callbacks: { label: ctx => ` ${ctx.dataset.label}: ${fmtCurrency(ctx.raw, cur)}` } },
       },
       scales: {
         x: { ticks: { color: '#8b90a8' }, grid: { color: '#2a2e3f40' } },
         y: {
           ticks: { color: '#8b90a8', callback: v => fmtCurrency(v, cur) },
           grid: { color: '#2a2e3f40' },
+        },
+        y2: {
+          position: 'right',
+          ticks: { color: '#f59e0b', font: { family: 'DM Sans' }, callback: v => fmtCurrency(v, cur) },
+          grid: { display: false },
         },
       },
     },
