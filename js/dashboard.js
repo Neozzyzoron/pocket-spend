@@ -33,13 +33,13 @@ function crossHatch(color) {
 
 // Shared color palette — used consistently across tiles, charts, nature breakdown
 const CLR = {
-  income:  '#22c55ea6',
-  spend:   '#ef4444a6',
-  debt:    '#dc2626a6',
-  savings: '#3b82f6a6',
-  invest:  '#8b5cf6a6',
-  balance: '#f59e0ba6',
-  neutral: '#6b7280a6',
+  income:  '#22c55ebf',
+  spend:   '#ef4444bf',
+  debt:    '#dc2626bf',
+  savings: '#3b82f6bf',
+  invest:  '#8b5cf6bf',
+  balance: '#f59e0bbf',
+  neutral: '#6b7280bf',
 };
 
 // ── MAIN RENDER ───────────────────────────────────────────────
@@ -408,7 +408,7 @@ function renderPanel(html, canvasId, rows, total, cur, getChart, setChart) {
     const existing = getChart();
     if (existing) { existing.destroy(); }
     const colors = rows.map((row, i) => rowColor(row, i));
-    const colorsOpaque = colors.map(c => c.length === 7 ? c + 'a6' : c);
+    const colorsOpaque = colors.map(c => c.length === 7 ? c + 'bf' : c);
     setChart(new Chart(canvas, {
       type: 'doughnut',
       data: {
@@ -463,7 +463,7 @@ function renderStackedBarPanel(canvasId, incomeRows, expenseRows, savingsNet, in
 
     const incomeTotal  = incomeRows.reduce((s, r) => s + r[1], 0);
     const expenseTotal = expenseRows.reduce((s, r) => s + r[1], 0);
-    const toColor = (row, i) => { const c = rowColor(row, i); return c.length === 7 ? c + 'a6' : c; };
+    const toColor = (row, i) => { const c = rowColor(row, i); return c.length === 7 ? c + 'bf' : c; };
 
     const hasSavInv = savingsNet !== 0 || investNet !== 0;
     const labels = ['Income', 'Spend'];
