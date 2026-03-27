@@ -12,6 +12,7 @@ import { openTxModal } from './transactions.js';
 
 let cashflowChart = null;
 let breakdownChart = null;
+let allTxChart = null;
 
 const CHART_COLORS = [
   '#3b82f6','#f59e0b','#22c55e','#ef4444','#a855f7',
@@ -43,7 +44,7 @@ export function render(state) {
 
     ${sections.breakdown ? `<div class="section">
       <div class="section-header">
-        <div class="section-title">Spending Breakdown</div>
+        <div class="section-title">Breakdown</div>
         <div class="toggle-group">
           <button class="toggle-group-btn breakdown-tab active" data-view="nature">Nature</button>
           <button class="toggle-group-btn breakdown-tab" data-view="group">Group</button>
@@ -51,8 +52,7 @@ export function render(state) {
           <button class="toggle-group-btn breakdown-tab" data-view="all">All</button>
         </div>
       </div>
-      <div class="card" style="padding:0"><div id="breakdown-rows"></div></div>
-    </div>` : ''}
+      <div id="breakdown-rows" style="display:flex;gap:1rem;flex-wrap:wrap"></div>
 
     ${sections.cashflow ? `<div class="section">
       <div class="section-header">
@@ -320,7 +320,92 @@ function openDashCustomize(state, sections) {
 }
 
 // ── SPENDING BREAKDOWN ────────────────────────────────────────
-const NATURE_LABEL = { savings: 'Savings', investment: 'Investments', debt_payment: 'Debt Payments' };
+const NATURE_LABEL = {
+  savings: 'Savings', investment: 'Investments', debt_payment: 'Debt Payments',
+  income: 'Income', withdrawal: 'Withdrawal',
+};
+const EXPENSE_TYPES = ['spend','savings','investment','debt_payment'];
+const ALL_TYPES     = ['income','spend','savings','investment','debt_payment','withdrawal'];
+
+function buildRows(txList, view, categories) {
+  if (view === 'nature') {
+    const map = {};
+    for (const tx of txList) {
+      const key = NATURE_LABEL[tx.type] || (categories.find(c => c.id === tx.category_id)?.nature) || 'Uncategorised';
+      map[key] = (map[key] || 0) + Number(tx.amount);
+    }
+    return Object.entries(map).sort((a,b) => b[1]-a[1]);
+  }
+  if (view === 'group') {
+    const map = {};
+    for (const tx of txList) {
+      const cat = categories.find(c => c.id === tx.category_id);
+      const key = cat
+        ? (() => { const g = cat.parent_id ? (categories.find(c => c.id === cat.parent_id) || cat) : cat; return `${g.icon||''} ${g.name}`.trim(); })()
+        : (NATURE_LABEL[tx.type] || 'Uncategorised');
+      map[key] = (map[key] || 0) + Number(tx.amount);
+    }
+    return Object.entries(map).sort((a,b) => b[1]-a[1]);
+  }
+  if (view === 'all') {
+    return txList.sort((a,b) => b.amount - a.amount).map(tx => {
+      const cat = categories.find(c => c.id === tx.category_id);
+      const name = `${tx.description || ''}${cat ? ' · '+(cat.icon||'')+' '+cat.name : ''}`.trim();
+      return [name || '—', Number(tx.amount)];
+    });
+  }
+  // subcategory
+  const map = {};
+  for (const tx of txList) {
+    const cat = categories.find(c => c.id === tx.category_id);
+    const key = cat ? `${cat.icon||''} ${cat.name}`.trim() : (NATURE_LABEL[tx.type] || 'Uncategorised');
+    map[key] = (map[key] || 0) + Number(tx.amount);
+  }
+  return Object.entries(map).sort((a,b) => b[1]-a[1]);
+}
+
+function renderPanel(html, canvasId, rows, total, cur, getChart, setChart) {
+  html; // rendered in caller
+  setTimeout(() => {
+    const canvas = document.getElementById(canvasId);
+    if (!canvas || !window.Chart) return;
+    const existing = getChart();
+    if (existing) { existing.destroy(); }
+    const colors = rows.map((_, i) => CHART_COLORS[i % CHART_COLORS.length]);
+    setChart(new Chart(canvas, {
+      type: 'doughnut',
+      data: {
+        labels: rows.map(([name]) => name),
+        datasets: [{ data: rows.map(([,amt]) => amt), backgroundColor: colors, borderWidth: 2, borderColor: 'var(--surface)' }],
+      },
+      options: {
+        responsive: true, maintainAspectRatio: false, cutout: '65%',
+        plugins: {
+          legend: { display: false },
+          tooltip: { callbacks: { label: ctx => ` ${ctx.label}: ${fmtCurrency(ctx.raw, cur)} (${(ctx.raw/total*100).toFixed(1)}%)` }},
+        },
+      },
+    }));
+  }, 50);
+}
+
+function panelHtml(rows, total, cur, canvasId) {
+  const colors = rows.map((_, i) => CHART_COLORS[i % CHART_COLORS.length]);
+  return `<div style="display:flex;align-items:center;gap:1rem;padding:.75rem;flex-wrap:wrap">
+    <div style="position:relative;width:160px;height:160px;flex-shrink:0"><canvas id="${canvasId}"></canvas></div>
+    <div style="flex:1;min-width:150px;display:flex;flex-direction:column">
+      ${rows.map(([name,amt],i) => `<div style="display:flex;align-items:center;gap:.5rem;padding:.35rem 0;border-bottom:1px solid var(--border)">
+          <span style="width:8px;height:8px;border-radius:50%;background:${colors[i]};flex-shrink:0"></span>
+          <span class="text-sm" style="flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${escHtml(name)}">${escHtml(name)}</span>
+          <span class="text-mono text-sm">${fmtCurrency(amt,cur)}</span>
+          <span class="text-muted" style="font-size:.65rem;width:3rem;text-align:right">${(amt/total*100).toFixed(1)}%</span>
+        </div>`).join('')}
+      <div style="display:flex;justify-content:space-between;padding:.4rem 0;font-weight:600;font-size:.8rem">
+        <span>Total</span><span class="text-mono">${fmtCurrency(total,cur)}</span>
+      </div>
+    </div>
+  </div>`;
+}
 
 function renderBreakdownRows(state, period, cur, view) {
   const container = document.getElementById('breakdown-rows');
@@ -329,110 +414,33 @@ function renderBreakdownRows(state, period, cur, view) {
   const { transactions, categories } = state;
   const { start, end } = period;
 
-  // All expense-type transactions in period
-  const spendTx = transactions.filter(tx =>
-    isEffective(tx) &&
-    ['spend','savings','investment','debt_payment'].includes(tx.type) &&
-    parseISO(tx.date) >= start && parseISO(tx.date) <= end
-  );
-  const total = spendTx.reduce((s, tx) => s + Number(tx.amount), 0);
+  const inPeriod = (tx) => isEffective(tx) && parseISO(tx.date) >= start && parseISO(tx.date) <= end;
+  const expenseTx = transactions.filter(tx => inPeriod(tx) && EXPENSE_TYPES.includes(tx.type));
+  const allTx     = transactions.filter(tx => inPeriod(tx) && ALL_TYPES.includes(tx.type));
 
-  if (total === 0) {
-    container.innerHTML = `<div class="empty-state" style="padding:2rem">No expenses this period</div>`;
+  const expenseTotal = expenseTx.reduce((s,tx) => s + Number(tx.amount), 0);
+  const allTotal     = allTx.reduce((s,tx) => s + Number(tx.amount), 0);
+
+  if (expenseTotal === 0 && allTotal === 0) {
+    container.innerHTML = `<div class="empty-state" style="padding:2rem">No transactions this period</div>`;
     return;
   }
 
-  let rows = [];
-
-  if (view === 'nature') {
-    const map = {};
-    for (const tx of spendTx) {
-      // savings/investment/debt_payment use their own label regardless of category nature
-      let key = NATURE_LABEL[tx.type];
-      if (!key) {
-        const cat = categories.find(c => c.id === tx.category_id);
-        key = cat?.nature || 'Uncategorised';
-      }
-      map[key] = (map[key] || 0) + Number(tx.amount);
-    }
-    rows = Object.entries(map).sort((a,b) => b[1] - a[1]);
-
-  } else if (view === 'group') {
-    const map = {};
-    for (const tx of spendTx) {
-      const cat = categories.find(c => c.id === tx.category_id);
-      if (!cat) { map[NATURE_LABEL[tx.type] || 'Uncategorised'] = (map[NATURE_LABEL[tx.type] || 'Uncategorised'] || 0) + Number(tx.amount); continue; }
-      const group = cat.parent_id ? (categories.find(c => c.id === cat.parent_id) || cat) : cat;
-      const key = `${group.icon || ''} ${group.name}`.trim();
-      map[key] = (map[key] || 0) + Number(tx.amount);
-    }
-    rows = Object.entries(map).sort((a,b) => b[1] - a[1]);
-
-  } else if (view === 'all') {
-    rows = spendTx
-      .sort((a, b) => b.amount - a.amount)
-      .map(tx => {
-        const cat = categories.find(c => c.id === tx.category_id);
-        const name = `${tx.description || ''}${cat ? ' · ' + (cat.icon || '') + ' ' + cat.name : ''}`.trim();
-        return [name || '—', Number(tx.amount)];
-      });
-  } else {
-    // subcategory view
-    const map = {};
-    for (const tx of spendTx) {
-      const cat = categories.find(c => c.id === tx.category_id);
-      const key = cat ? `${cat.icon || ''} ${cat.name}`.trim() : (NATURE_LABEL[tx.type] || 'Uncategorised');
-      map[key] = (map[key] || 0) + Number(tx.amount);
-    }
-    rows = Object.entries(map).sort((a,b) => b[1] - a[1]);
-  }
-
-  const colors = rows.map((_, i) => CHART_COLORS[i % CHART_COLORS.length]);
+  const expenseRows = expenseTotal > 0 ? buildRows(expenseTx, view, categories) : [];
+  const allRows     = allTotal > 0     ? buildRows(allTx,     view, categories) : [];
 
   container.innerHTML = `
-    <div style="display:flex;align-items:center;gap:1.5rem;padding:1rem;flex-wrap:wrap">
-      <div style="position:relative;width:200px;height:200px;flex-shrink:0">
-        <canvas id="breakdown-canvas"></canvas>
-      </div>
-      <div style="flex:1;min-width:180px;display:flex;flex-direction:column;gap:0">
-        ${rows.map(([name, amt], i) => {
-          const pct = (amt / total * 100).toFixed(1);
-          return `<div style="display:flex;align-items:center;gap:.6rem;padding:.45rem 0;border-bottom:1px solid var(--border)">
-            <span style="width:10px;height:10px;border-radius:50%;background:${colors[i % colors.length]};flex-shrink:0"></span>
-            <span class="text-sm" style="flex:1;min-width:0" title="${escHtml(name)}">${escHtml(name)}</span>
-            <span class="text-mono text-sm" style="white-space:nowrap">${fmtCurrency(amt, cur)}</span>
-            <span class="text-muted text-sm" style="width:3.5rem;text-align:right">${pct}%</span>
-          </div>`;
-        }).join('')}
-        <div style="display:flex;justify-content:space-between;padding:.5rem 0;font-weight:600">
-          <span>Total</span><span class="text-mono">${fmtCurrency(total, cur)}</span>
-        </div>
-      </div>
+    <div class="card" style="flex:1;min-width:280px;padding:0">
+      <div style="padding:.6rem 1rem .3rem;font-weight:600;font-size:.8rem;color:var(--text2);border-bottom:1px solid var(--border)">Expenses</div>
+      ${expenseRows.length ? panelHtml(expenseRows, expenseTotal, cur, 'breakdown-canvas') : '<div class="empty-state" style="padding:1.5rem">No expenses</div>'}
+    </div>
+    <div class="card" style="flex:1;min-width:280px;padding:0">
+      <div style="padding:.6rem 1rem .3rem;font-weight:600;font-size:.8rem;color:var(--text2);border-bottom:1px solid var(--border)">All Transactions</div>
+      ${allRows.length ? panelHtml(allRows, allTotal, cur, 'alltx-canvas') : '<div class="empty-state" style="padding:1.5rem">No transactions</div>'}
     </div>`;
 
-  setTimeout(() => {
-    const canvas = document.getElementById('breakdown-canvas');
-    if (!canvas || !window.Chart) return;
-    if (breakdownChart) { breakdownChart.destroy(); breakdownChart = null; }
-    breakdownChart = new Chart(canvas, {
-      type: 'doughnut',
-      data: {
-        labels: rows.map(([name]) => name),
-        datasets: [{ data: rows.map(([, amt]) => amt), backgroundColor: colors, borderWidth: 2, borderColor: 'var(--surface)' }],
-      },
-      options: {
-        responsive: true,
-        maintainAspectRatio: false,
-        cutout: '65%',
-        plugins: {
-          legend: { display: false },
-          tooltip: { callbacks: {
-            label: ctx => ` ${ctx.label}: ${fmtCurrency(ctx.raw, cur)} (${(ctx.raw / total * 100).toFixed(1)}%)`
-          }},
-        },
-      },
-    });
-  }, 50);
+  if (expenseRows.length) renderPanel('', 'breakdown-canvas', expenseRows, expenseTotal, cur, () => breakdownChart, c => { breakdownChart = c; });
+  if (allRows.length)     renderPanel('', 'alltx-canvas',     allRows,     allTotal,     cur, () => allTxChart,     c => { allTxChart = c; });
 }
 
 // ── CASHFLOW CHART ────────────────────────────────────────────
