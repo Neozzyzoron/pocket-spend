@@ -186,21 +186,25 @@ function renderSummaryTiles(stats, cur) {
   const mode = App.cycleMode();
   const dueLabel = mode === 'month' ? 'Due till end of month' : 'Due till next cycle';
 
-  function sub(label, value) {
-    return `<div style="display:flex;justify-content:space-between;font-size:.72rem;color:var(--text2)">
+  function sub(label, value, color) {
+    const c = color || 'var(--text2)';
+    const op = color ? ';opacity:.65' : '';
+    return `<div style="display:flex;justify-content:space-between;font-size:.8rem;color:${c}${op}">
       <span>${label}</span><span class="text-mono">${fmtCurrency(value, cur)}</span>
     </div>`;
   }
-  function subColored(label, value, color) {
-    return `<div style="display:flex;justify-content:space-between;font-size:.72rem">
-      <span style="color:var(--text2)">${label}</span>
-      <span class="text-mono" style="color:${color}">${fmtCurrency(value, cur)}</span>
+  function subColored(label, value, valueColor, tileColor) {
+    const lc = tileColor ? `color:${tileColor};opacity:.65` : 'color:var(--text2)';
+    return `<div style="display:flex;justify-content:space-between;font-size:.8rem">
+      <span style="${lc}">${label}</span>
+      <span class="text-mono" style="color:${valueColor}">${fmtCurrency(value, cur)}</span>
     </div>`;
   }
-  function subText(label, text, color) {
-    return `<div style="display:flex;justify-content:space-between;font-size:.72rem">
-      <span style="color:var(--text2)">${label}</span>
-      <span class="text-mono" style="color:${color || 'var(--text2)'}">${text}</span>
+  function subText(label, text, valueColor, tileColor) {
+    const lc = tileColor ? `color:${tileColor};opacity:.65` : 'color:var(--text2)';
+    return `<div style="display:flex;justify-content:space-between;font-size:.8rem">
+      <span style="${lc}">${label}</span>
+      <span class="text-mono" style="color:${valueColor || 'var(--text2)'}">${text}</span>
     </div>`;
   }
 
@@ -210,8 +214,8 @@ function renderSummaryTiles(stats, cur) {
       <div class="card-title text-sm" style="color:#166534">Income</div>
       <div class="card-value text-mono" style="color:#166534">${fmtCurrency(income, cur)}</div>
       <div style="margin-top:.5rem;padding-top:.4rem;border-top:1px solid var(--border);display:flex;flex-direction:column;gap:.15rem">
-        ${sub('Fixed', income_fixed)}
-        ${sub('Extra', income_extra)}
+        ${sub('Fixed', income_fixed, '#166534')}
+        ${sub('Extra', income_extra, '#166534')}
       </div>
     </div>`,
 
@@ -220,8 +224,8 @@ function renderSummaryTiles(stats, cur) {
       <div class="card-title text-sm" style="color:#c2410c">Expenses</div>
       <div class="card-value text-mono" style="color:#c2410c">${fmtCurrency(total_expenses, cur)}</div>
       <div style="margin-top:.5rem;padding-top:.4rem;border-top:1px solid var(--border);display:flex;flex-direction:column;gap:.15rem">
-        ${sub('Direct spend', direct_spend)}
-        ${sub('Commitments', commitments)}
+        ${sub('Direct spend', direct_spend, '#c2410c')}
+        ${sub('Commitments', commitments, '#c2410c')}
       </div>
     </div>`,
 
@@ -230,7 +234,7 @@ function renderSummaryTiles(stats, cur) {
       <div class="card-title text-sm text-muted">Net Balance</div>
       <div class="card-value text-mono" style="color:${netColor}">${fmtCurrency(period_net, cur)}</div>
       <div style="margin-top:.5rem;padding-top:.4rem;border-top:1px solid var(--border);display:flex;flex-direction:column;gap:.15rem">
-        ${sub('Net worth', net_worth)}
+        ${sub('Net worth', net_worth, netColor)}
       </div>
     </div>`,
 
@@ -239,9 +243,9 @@ function renderSummaryTiles(stats, cur) {
       <div class="card-title text-sm" style="color:#d97706">${dueLabel}</div>
       <div class="card-value text-mono" style="color:#d97706">${fmtCurrency(due_amount, cur)}</div>
       <div style="margin-top:.5rem;padding-top:.4rem;border-top:1px solid var(--border);display:flex;flex-direction:column;gap:.15rem">
-        ${subText('Transactions due', `${due_count} tx`, 'var(--text2)')}
-        ${subColored('Exp. balance', expected_eop, eopColor)}
-        ${runway !== null ? subText('Runway', `${Math.round(runway)}d`, runway > 14 ? '#4ade80' : runway > 7 ? '#fbbf24' : '#f87171') : ''}
+        ${subText('Transactions due', `${due_count} tx`, 'var(--text2)', '#d97706')}
+        ${subColored('Exp. balance', expected_eop, eopColor, '#d97706')}
+        ${runway !== null ? subText('Runway', `${Math.round(runway)}d`, runway > 14 ? '#4ade80' : runway > 7 ? '#fbbf24' : '#f87171', '#d97706') : ''}
       </div>
     </div>`,
 
@@ -250,8 +254,8 @@ function renderSummaryTiles(stats, cur) {
       <div class="card-title text-sm" style="color:#1d4ed8">Savings</div>
       <div class="card-value text-mono" style="color:#1d4ed8">${fmtCurrency(savings_balance, cur)}</div>
       <div style="margin-top:.5rem;padding-top:.4rem;border-top:1px solid var(--border);display:flex;flex-direction:column;gap:.15rem">
-        ${sub('Contributed', saved)}
-        ${sub('Withdrawn', savings_withdrawn)}
+        ${sub('Contributed', saved, '#1d4ed8')}
+        ${sub('Withdrawn', savings_withdrawn, '#1d4ed8')}
       </div>
     </div>`,
 
@@ -260,8 +264,8 @@ function renderSummaryTiles(stats, cur) {
       <div class="card-title text-sm" style="color:#7c3aed">Investments</div>
       <div class="card-value text-mono" style="color:#7c3aed">${fmtCurrency(investment_balance, cur)}</div>
       <div style="margin-top:.5rem;padding-top:.4rem;border-top:1px solid var(--border);display:flex;flex-direction:column;gap:.15rem">
-        ${sub('Contributed', invested)}
-        ${sub('Withdrawn', investment_withdrawn)}
+        ${sub('Contributed', invested, '#7c3aed')}
+        ${sub('Withdrawn', investment_withdrawn, '#7c3aed')}
       </div>
     </div>`,
 
@@ -270,7 +274,7 @@ function renderSummaryTiles(stats, cur) {
       <div class="card-title text-sm" style="color:#991b1b">Debt Payments</div>
       <div class="card-value text-mono" style="color:#991b1b">${fmtCurrency(debt_payments, cur)}</div>
       <div style="margin-top:.5rem;padding-top:.4rem;border-top:1px solid var(--border);display:flex;flex-direction:column;gap:.15rem">
-        ${sub('Total debt', total_debt)}
+        ${sub('Total debt', total_debt, '#991b1b')}
       </div>
     </div>`,
   ];
