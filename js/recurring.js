@@ -5,7 +5,7 @@
 
 import {
   fmtCurrency, fmtDate, escHtml, parseISO, todayISO, toISO,
-  buildCategoryOptions, buildAccountOptions, TX_TYPE_LABELS,
+  buildCategoryOptions, buildAccountOptions, TX_TYPE_LABELS, TX_FORM_TYPES,
   effectiveType, isLiquid,
 } from './utils.js';
 
@@ -315,7 +315,7 @@ function openTemplateModal(state, tmpl = null) {
       <div class="form-group" style="flex:1">
         <label class="form-label">Type *</label>
         <select class="form-select" id="tf2-type">
-          ${Object.entries(TX_TYPE_LABELS).map(([k,v]) => `<option value="${k}"${defaultType===k?' selected':''}>${v}</option>`).join('')}
+          ${TX_FORM_TYPES.map(([k,v]) => `<option value="${k}"${defaultType===k?' selected':''}>${v}</option>`).join('')}
         </select>
       </div>
     </div>

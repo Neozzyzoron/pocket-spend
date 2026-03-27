@@ -6,7 +6,7 @@
 import {
   fmtCurrency, escHtml, effectiveType, calcAccountBalance,
   buildCategoryTree, isEffective, colorSwatchesHtml, wireColorSwatches,
-  wireDragReorder,
+  wireDragReorder, TX_FORM_TYPES,
 } from './utils.js';
 
 // Persists collapse state within the session
@@ -853,7 +853,6 @@ function openCategoryModal(state, cat = null, parentGroup = null) {
   if (!isEdit && parent) cat = { icon: parent.icon, color: parent.color, nature: parent.nature, default_tx_type: parent.default_tx_type };
 
   const NATURES = ['Income', 'Essentials', 'Variables', 'Discretionary', 'Savings', 'Investments', 'Debt'];
-  const TX_TYPES = ['spend','income','savings','investment','transfer','withdrawal','debt_payment','adjustment'];
 
   const html = `<form id="cat-form">
     ${isSub ? `<div class="form-hint" style="margin-bottom:1rem">Subcategory of: <strong>${escHtml(parent?.name || '?')}</strong></div>` : ''}
@@ -891,7 +890,7 @@ function openCategoryModal(state, cat = null, parentGroup = null) {
       <label class="form-label">Default transaction type</label>
       <select class="form-select" id="cf-tx-type">
         <option value="">—</option>
-        ${TX_TYPES.map(t => `<option value="${t}"${cat?.default_tx_type === t ? ' selected' : ''}>${t}</option>`).join('')}
+        ${TX_FORM_TYPES.map(([k,v]) => `<option value="${k}"${cat?.default_tx_type === k ? ' selected' : ''}>${v}</option>`).join('')}
       </select>
     </div>
     <div id="cf-error" class="form-error hidden"></div>

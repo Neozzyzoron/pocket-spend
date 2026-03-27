@@ -230,13 +230,34 @@ export function isEffective(tx) {
   return tx.status === 'confirmed' || parseISO(tx.date) <= todayDate();
 }
 
-/** Type → display label */
+/** Type → display label (used for badges and individual type display) */
 export const TX_TYPE_LABELS = {
   spend: 'Spend', income: 'Income', savings: 'Savings',
   investment: 'Investment', transfer: 'Transfer',
   withdrawal: 'Withdrawal', debt_payment: 'Debt Payment',
   adjustment: 'Adjust',
 };
+
+/** Ordered type list for form selectors — excludes withdrawal */
+export const TX_FORM_TYPES = [
+  ['income',       'Income'],
+  ['spend',        'Spend'],
+  ['savings',      'Savings'],
+  ['investment',   'Investment'],
+  ['debt_payment', 'Debt Payment'],
+  ['transfer',     'Transfer'],
+  ['adjustment',   'Adjust'],
+];
+
+/** Consolidated type list for filter dropdowns — savings+investment merged */
+export const TX_FILTER_TYPES = [
+  ['income',             'Income'],
+  ['spend',              'Spend'],
+  ['savings_investment', 'Savings & Investments'],
+  ['debt_payment',       'Debt Payment'],
+  ['transfer',           'Transfer'],
+  ['adjustment',         'Adjust'],
+];
 
 /** Type → badge CSS class */
 export function typeBadgeClass(type) {

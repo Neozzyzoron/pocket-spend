@@ -5,7 +5,7 @@
 import {
   fmtCurrency, fmtDate, fmtRelDate, escHtml, parseISO, todayISO,
   isEffective, effectiveType, isLiquid, buildCategoryOptions,
-  buildAccountOptions, TX_TYPE_LABELS, typeBadgeClass, getCat,
+  buildAccountOptions, TX_TYPE_LABELS, TX_FORM_TYPES, TX_FILTER_TYPES, typeBadgeClass, getCat,
 } from './utils.js';
 
 // ── STATE ─────────────────────────────────────────────────────
@@ -83,7 +83,7 @@ export function render(state) {
         </div>
         <select class="form-select" id="tx-filter-type" style="width:auto">
           <option value="">All types</option>
-          ${Object.entries(TX_TYPE_LABELS).map(([k,v]) => `<option value="${k}"${filters.type===k?' selected':''}>${v}</option>`).join('')}
+          ${TX_FILTER_TYPES.map(([k,v]) => `<option value="${k}"${filters.type===k?' selected':''}>${v}</option>`).join('')}
         </select>
         <select class="form-select" id="tx-filter-account" style="width:auto">
           <option value="">All accounts</option>
@@ -152,7 +152,11 @@ function getFiltered(state) {
   return transactions.filter(tx => {
     if (filters.status === 'confirmed' && tx.status !== 'confirmed') return false;
     if (filters.status === 'pending' && tx.status !== 'pending') return false;
-    if (filters.type && tx.type !== filters.type) return false;
+    if (filters.type) {
+      if (filters.type === 'savings_investment') {
+        if (tx.type !== 'savings' && tx.type !== 'investment') return false;
+      } else if (tx.type !== filters.type) return false;
+    }
     if (filters.account && tx.account_id !== filters.account && tx.to_account_id !== filters.account) return false;
     if (filters.person && tx.user_id !== filters.person) return false;
     if (filters.category) {
@@ -446,7 +450,7 @@ function renderInlineEditRow(tx, state, cur, cols = DEFAULT_COLUMNS) {
   const group = cat?.parent_id ? categories.find(c => c.id === cat.parent_id) : cat;
 
   const typeSelect = `<select class="form-select" id="ie-type">
-    ${Object.entries(TX_TYPE_LABELS).map(([k,v]) => `<option value="${k}"${tx.type===k?' selected':''}>${v}</option>`).join('')}
+    ${TX_FORM_TYPES.map(([k,v]) => `<option value="${k}"${tx.type===k?' selected':''}>${v}</option>`).join('')}
   </select>`;
 
   const accField = hasTwoAccounts
@@ -702,7 +706,7 @@ export function openTxModal(state, tx = null) {
         <div class="form-group" style="flex:1">
           <label class="form-label">Type *</label>
           <select class="form-select" id="tf-type">
-            ${Object.entries(TX_TYPE_LABELS).map(([k,v]) => `<option value="${k}"${defaultType===k?' selected':''}>${v}</option>`).join('')}
+            ${TX_FORM_TYPES.map(([k,v]) => `<option value="${k}"${defaultType===k?' selected':''}>${v}</option>`).join('')}
           </select>
         </div>
       </div>
