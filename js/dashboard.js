@@ -408,7 +408,7 @@ function renderPanel(html, canvasId, rows, total, cur, getChart, setChart) {
     const existing = getChart();
     if (existing) { existing.destroy(); }
     const colors = rows.map((row, i) => rowColor(row, i));
-    const colorsOpaque = colors;
+    const colorsOpaque = colors.map(c => c.length === 7 ? c + 'a6' : c);
     setChart(new Chart(canvas, {
       type: 'doughnut',
       data: {
@@ -463,7 +463,7 @@ function renderStackedBarPanel(canvasId, incomeRows, expenseRows, savingsNet, in
 
     const incomeTotal  = incomeRows.reduce((s, r) => s + r[1], 0);
     const expenseTotal = expenseRows.reduce((s, r) => s + r[1], 0);
-    const toColor = (row, i) => rowColor(row, i);
+    const toColor = (row, i) => { const c = rowColor(row, i); return c.length === 7 ? c + 'a6' : c; };
 
     const hasSavInv = savingsNet !== 0 || investNet !== 0;
     const labels = ['Income', 'Spend'];
@@ -483,11 +483,11 @@ function renderStackedBarPanel(canvasId, incomeRows, expenseRows, savingsNet, in
     ];
     if (savingsNet !== 0) datasets.push({
       label: 'Savings', data: pad(savingsNet, 2),
-      backgroundColor: CLR.savings, borderWidth: 0, borderRadius: 4,
+      backgroundColor: CLR.savings + 'a6', borderWidth: 0, borderRadius: 4,
     });
     if (investNet !== 0) datasets.push({
       label: 'Investments', data: pad(investNet, 2),
-      backgroundColor: CLR.invest, borderWidth: 0, borderRadius: 4,
+      backgroundColor: CLR.invest + 'a6', borderWidth: 0, borderRadius: 4,
     });
 
     const totals = { Income: incomeTotal, Spend: expenseTotal, 'Savings & Inv.': savingsNet + investNet };
@@ -615,13 +615,13 @@ function drawCashflowChart(state, cur) {
     data: {
       labels,
       datasets: [
-        { label: 'Income',                    data: incomeData,     backgroundColor: CLR.income  },
-        { label: 'Spend',                     data: spendData,      backgroundColor: CLR.spend   },
-        { label: 'Net Savings & Investments', data: netSavingsData, backgroundColor: CLR.savings },
+        { label: 'Income',                    data: incomeData,     backgroundColor: CLR.income  + 'a6' },
+        { label: 'Spend',                     data: spendData,      backgroundColor: CLR.spend   + 'a6' },
+        { label: 'Net Savings & Investments', data: netSavingsData, backgroundColor: CLR.savings + 'a6' },
         {
           label: 'Balance',
           data: balanceData,
-          backgroundColor: crossHatch(CLR.balance),
+          backgroundColor: crossHatch(CLR.balance + 'a6'),
           borderWidth: 0, borderRadius: 4,
         },
       ],
