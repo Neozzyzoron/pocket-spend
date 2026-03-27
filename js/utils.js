@@ -238,15 +238,14 @@ export const TX_TYPE_LABELS = {
   adjustment: 'Adjust',
 };
 
-/** Ordered type list for form selectors — excludes withdrawal */
+/** Ordered type list for form selectors — savings+investment merged */
 export const TX_FORM_TYPES = [
-  ['income',       'Income'],
-  ['spend',        'Spend'],
-  ['savings',      'Savings'],
-  ['investment',   'Investment'],
-  ['debt_payment', 'Debt Payment'],
-  ['transfer',     'Transfer'],
-  ['adjustment',   'Adjust'],
+  ['income',             'Income'],
+  ['spend',              'Spend'],
+  ['savings_investment', 'Savings & Investments'],
+  ['debt_payment',       'Debt Payment'],
+  ['transfer',           'Transfer'],
+  ['adjustment',         'Adjust'],
 ];
 
 /** Consolidated type list for filter dropdowns — savings+investment merged */

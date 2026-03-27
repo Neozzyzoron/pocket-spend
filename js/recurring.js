@@ -303,7 +303,7 @@ async function deleteTemplate(state, id) {
 function openTemplateModal(state, tmpl = null) {
   const isEdit = !!tmpl;
   const { categories, accounts } = state;
-  const defaultType = tmpl?.type || 'spend';
+  const defaultType = (tmpl?.type === 'savings' || tmpl?.type === 'investment') ? 'savings_investment' : (tmpl?.type || 'spend');
   const catOpts = buildCategoryOptions(categories, tmpl?.category_id);
 
   const html = `<form id="tmpl-form" autocomplete="off">
@@ -410,9 +410,8 @@ function renderTmplAccountFields(state, tmpl = null) {
   const { accounts } = state;
   const order = state.accountOrder;
 
-  const hasTwoAccounts = ['savings','investment','transfer','withdrawal','debt_payment'].includes(type);
-  const toFilter = type === 'savings' ? a => effectiveType(a) === 'savings'
-    : type === 'investment' ? a => effectiveType(a) === 'investment'
+  const hasTwoAccounts = ['savings_investment','transfer','withdrawal','debt_payment'].includes(type);
+  const toFilter = type === 'savings_investment' ? a => ['savings','investment'].includes(effectiveType(a))
     : type === 'withdrawal' ? a => isLiquid(a)
     : type === 'debt_payment' ? a => effectiveType(a) === 'loan'
     : null;
@@ -446,8 +445,11 @@ async function saveTmpl(state, existing = null) {
 
   const description = document.getElementById('tf2-desc')?.value.trim();
   const amount = parseFloat(document.getElementById('tf2-amount')?.value);
-  const type = document.getElementById('tf2-type')?.value;
   const category_id = document.getElementById('tf2-cat')?.value || null;
+  const rawType = document.getElementById('tf2-type')?.value;
+  const type = rawType === 'savings_investment'
+    ? (state.categories.find(c => c.id === category_id)?.nature === 'Investments' ? 'investment' : 'savings')
+    : rawType;
   const account_id = document.getElementById('tf2-acc')?.value || null;
   const to_account_id = document.getElementById('tf2-to-acc')?.value || null;
   const frequency = document.getElementById('tf2-freq')?.value;

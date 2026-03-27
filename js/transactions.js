@@ -8,6 +8,18 @@ import {
   buildAccountOptions, TX_TYPE_LABELS, TX_FORM_TYPES, TX_FILTER_TYPES, typeBadgeClass, getCat,
 } from './utils.js';
 
+// Resolve 'savings_investment' to 'savings' or 'investment' based on category nature
+function resolveType(rawType, categoryId, categories) {
+  if (rawType !== 'savings_investment') return rawType;
+  const cat = categories?.find(c => c.id === categoryId);
+  return cat?.nature === 'Investments' ? 'investment' : 'savings';
+}
+
+// Map a stored tx type back to the form value
+function toFormType(type) {
+  return (type === 'savings' || type === 'investment') ? 'savings_investment' : (type || 'spend');
+}
+
 // ── STATE ─────────────────────────────────────────────────────
 let filters = { search: '', status: 'all', type: '', category: '', account: '', person: '', month: '' };
 let editingId = null;
@@ -445,12 +457,13 @@ function renderInlineEditRow(tx, state, cur, cols = DEFAULT_COLUMNS) {
   const catOpts = buildCategoryOptions(categories, tx.category_id);
   const accOpts = buildAccountOptions(accounts, state.accountOrder, null, tx.account_id);
   const toAccOpts = buildAccountOptions(accounts, state.accountOrder, null, tx.to_account_id);
-  const hasTwoAccounts = ['savings','investment','transfer','withdrawal','debt_payment'].includes(tx.type);
+  const hasTwoAccounts = ['savings','investment','savings_investment','transfer','withdrawal','debt_payment'].includes(tx.type);
   const cat = categories.find(c => c.id === tx.category_id);
   const group = cat?.parent_id ? categories.find(c => c.id === cat.parent_id) : cat;
 
+  const formType = toFormType(tx.type);
   const typeSelect = `<select class="form-select" id="ie-type">
-    ${TX_FORM_TYPES.map(([k,v]) => `<option value="${k}"${tx.type===k?' selected':''}>${v}</option>`).join('')}
+    ${TX_FORM_TYPES.map(([k,v]) => `<option value="${k}"${formType===k?' selected':''}>${v}</option>`).join('')}
   </select>`;
 
   const accField = hasTwoAccounts
@@ -504,7 +517,7 @@ function expandInlineEdit(tx, state, cur) {
     const date = document.getElementById('ie-date')?.value;
     const description = document.getElementById('ie-desc')?.value.trim();
     const category_id = document.getElementById('ie-cat')?.value || null;
-    const type = document.getElementById('ie-type')?.value;
+    const type = resolveType(document.getElementById('ie-type')?.value, category_id, state.categories);
     const account_id = document.getElementById('ie-acc')?.value || null;
     const to_account_id = document.getElementById('ie-to-acc')?.value || null;
     const amount = parseFloat(document.getElementById('ie-amt')?.value);
@@ -655,7 +668,7 @@ export function openTxModal(state, tx = null) {
   const isEdit = !!tx;
   const { categories, accounts, profiles } = state;
   const cur = App.currency();
-  const defaultType = tx?.type || 'spend';
+  const defaultType = toFormType(tx?.type);
 
   // Build quick-pick list: saved favorites or top-10 frequent
   let quickPicks = [];
@@ -807,7 +820,7 @@ export function openTxModal(state, tx = null) {
     const catId = e.target.value;
     const cat = categories.find(c => c.id === catId);
     if (cat?.default_tx_type) {
-      document.getElementById('tf-type').value = cat.default_tx_type;
+      document.getElementById('tf-type').value = toFormType(cat.default_tx_type);
     }
     if (cat && !document.getElementById('tf-desc').value) {
       document.getElementById('tf-desc').value = cat.name;
@@ -830,18 +843,15 @@ function renderTxAccountFields(state, tx = null) {
   const { accounts } = state;
   const order = state.accountOrder;
 
-  const needsFrom = ['spend','savings','investment','transfer','withdrawal','debt_payment'].includes(type);
-  const needsTo   = ['savings','investment','transfer','withdrawal','debt_payment'].includes(type);
-  const fromLabel = type === 'income' ? 'Account' : 'From account';
+  const needsFrom = ['spend','savings_investment','transfer','withdrawal','debt_payment'].includes(type);
+  const needsTo   = ['savings_investment','transfer','withdrawal','debt_payment'].includes(type);
 
   const fromFilter = type === 'withdrawal'
     ? a => ['savings','investment'].includes(effectiveType(a))
     : a => !needsFrom || isLiquid(a);
 
-  const toFilter = type === 'savings'
-    ? a => effectiveType(a) === 'savings'
-    : type === 'investment'
-    ? a => effectiveType(a) === 'investment'
+  const toFilter = type === 'savings_investment'
+    ? a => ['savings','investment'].includes(effectiveType(a))
     : type === 'withdrawal'
     ? a => isLiquid(a)
     : type === 'debt_payment'
@@ -880,8 +890,8 @@ async function saveTx(state, existing = null) {
   const date        = document.getElementById('tf-date')?.value;
   const description = document.getElementById('tf-desc')?.value.trim();
   const amount      = parseFloat(document.getElementById('tf-amount')?.value);
-  const type        = document.getElementById('tf-type')?.value;
   const category_id = document.getElementById('tf-cat')?.value || null;
+  const type        = resolveType(document.getElementById('tf-type')?.value, category_id, state.categories);
   const account_id  = document.getElementById('tf-acc')?.value || null;
   const to_account_id = document.getElementById('tf-to-acc')?.value || null;
   const user_id     = document.getElementById('tf-person')?.value || App.state.user.id;
