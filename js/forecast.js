@@ -369,21 +369,27 @@ function renderForecastSummary(projections, periods, currentPeriod, forecastN, s
 
   const sumProjected = k => futurePeriods.reduce((s, p) => s + (p.projected?.[k] || 0), 0);
 
-  const income = sumProjected('income'), spending = sumProjected('spending'),
-        saved = sumProjected('saved'), invested = sumProjected('invested'),
-        debt = sumProjected('debt');
+  const income   = sumProjected('income');
+  const spending = sumProjected('spending');
+  const saved    = sumProjected('saved');
+  const invested = sumProjected('invested');
+  const withdrawn= sumProjected('withdrawn');
+  const debt     = sumProjected('debt');
+  const total_expenses = spending + debt;
+  const net_savings    = saved + invested - withdrawn;
+  const net = income - total_expenses;
 
-  // Expected closing balance
+  // Expected closing balance = current liquid balance + projected net
   const curBal = state.accounts.filter(a => !a.is_archived && isLiquid(a))
     .reduce((s, a) => s + calcAccountBalance(a, state.transactions), 0);
-  const expectedBalance = curBal + income - spending;
+  const expectedBalance = curBal + income - total_expenses;
 
   const cards = [
-    { label: '~ Income', val: income, cls: 'c-green' },
-    { label: '~ Spending', val: spending, cls: 'c-red' },
-    { label: '~ Saved', val: saved, cls: '' },
-    { label: '~ Invested', val: invested, cls: '' },
-    { label: '~ Debt Payments', val: debt, cls: 'c-red' },
+    { label: '~ Income',          val: income,          cls: 'c-green' },
+    { label: '~ Spend',           val: spending,         cls: 'c-red' },
+    { label: '~ Debt Payments',   val: debt,             cls: 'c-red' },
+    { label: '~ Net Savings & Inv.', val: net_savings,   cls: net_savings >= 0 ? 'c-green' : 'c-red' },
+    { label: '~ Net',             val: net,              cls: net >= 0 ? 'c-green' : 'c-red' },
     { label: '~ Expected Balance', val: expectedBalance, cls: expectedBalance >= 0 ? 'c-green' : 'c-red' },
   ];
 
@@ -420,7 +426,8 @@ function computeRunningBalance(projections, state) {
     .filter(a => !a.is_archived && isLiquid(a))
     .reduce((s, a) => s + calcAccountBalance(a, state.transactions), 0);
 
-  const netOf = d => d.income + (d.withdrawn || 0) - d.spending - (d.saved || 0) - (d.invested || 0) - (d.debt || 0);
+  // Net cash flow: income minus spend and debt payments only (savings/investment are transfers between own accounts)
+  const netOf = d => d.income - d.spending - (d.debt || 0);
 
   const currentIdx = projections.findIndex(p => p.period.isCurrent);
   if (currentIdx < 0) return projections.map(() => null);

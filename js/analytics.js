@@ -137,18 +137,23 @@ function renderPeriodSummary(allTx, periods, cur) {
   );
 
   const sum = (type) => inRange.filter(t => t.type === type).reduce((s, t) => s + Number(t.amount), 0);
-  const income = sum('income'), spending = sum('spend'), saved = sum('savings'),
-        invested = sum('investment'), withdrawn = sum('withdrawal'), debt = sum('debt_payment');
-  const net = income - spending - saved - invested - debt + withdrawn;
+  const income   = sum('income');
+  const spending = sum('spend');
+  const debt     = sum('debt_payment');
+  const saved    = sum('savings');
+  const invested = sum('investment');
+  const withdrawn= sum('withdrawal');
+  const total_expenses = spending + debt;
+  const net_savings    = saved + invested - withdrawn;
+  const net = income - total_expenses;
 
   const cards = [
-    { label: 'Income', val: income, cls: 'c-green' },
-    { label: 'Spending', val: spending, cls: 'c-red' },
-    { label: 'Saved', val: saved, cls: 'c-green' },
-    { label: 'Invested', val: invested, cls: '' },
-    { label: 'Withdrawn', val: withdrawn, cls: '' },
-    { label: 'Debt Payments', val: debt, cls: 'c-red' },
-    { label: 'Net', val: net, cls: net >= 0 ? 'c-green' : 'c-red' },
+    { label: 'Income',          val: income,          cls: 'c-green' },
+    { label: 'Spend',           val: spending,         cls: 'c-red' },
+    { label: 'Debt Payments',   val: debt,             cls: 'c-red' },
+    { label: 'Net Savings & Inv.', val: net_savings,   cls: net_savings >= 0 ? 'c-green' : 'c-red' },
+    { label: 'Total Expenses',  val: total_expenses,   cls: 'c-red' },
+    { label: 'Net',             val: net,              cls: net >= 0 ? 'c-green' : 'c-red' },
   ];
 
   return `<div class="section">
@@ -168,19 +173,28 @@ function drawCashflowChart(allTx, periods, cur) {
   if (!canvas || !window.Chart) return;
 
   const labels = periods.map(p => p.label);
+  const sumType = (p, ...types) => allTx.filter(tx =>
+    isEffective(tx) && types.includes(tx.type) &&
+    parseISO(tx.date) >= p.start && parseISO(tx.date) <= p.end
+  ).reduce((s, tx) => s + Number(tx.amount), 0);
+
   const datasets = [
-    { label: 'Income',   color: getCSSColor('--green')  + '99', type: 'income' },
-    { label: 'Spending', color: getCSSColor('--red')    + '99', type: 'spend' },
-    { label: 'Saved',    color: getCSSColor('--blue')   + '99', type: 'savings' },
-    { label: 'Invested', color: getCSSColor('--purple') + '99', type: 'investment' },
-  ].map(({ label, color, type }) => ({
-    label,
-    backgroundColor: color,
-    data: periods.map(p => allTx.filter(tx =>
-      isEffective(tx) && tx.type === type &&
-      parseISO(tx.date) >= p.start && parseISO(tx.date) <= p.end
-    ).reduce((s, tx) => s + Number(tx.amount), 0)),
-  }));
+    {
+      label: 'Income',
+      backgroundColor: getCSSColor('--green') + '99',
+      data: periods.map(p => sumType(p, 'income')),
+    },
+    {
+      label: 'Spend',
+      backgroundColor: getCSSColor('--red') + '99',
+      data: periods.map(p => sumType(p, 'spend', 'debt_payment')),
+    },
+    {
+      label: 'Net Savings & Inv.',
+      backgroundColor: getCSSColor('--blue') + '99',
+      data: periods.map(p => sumType(p, 'savings', 'investment') - sumType(p, 'withdrawal')),
+    },
+  ];
 
   if (cfChart) { cfChart.destroy(); cfChart = null; }
   cfChart = new Chart(canvas, {
@@ -255,7 +269,7 @@ function drawPersonChart(allTx, periods, profiles, cur) {
 
 // ── BREAKDOWN TABLE ───────────────────────────────────────────
 function renderBreakdownTable(allTx, periods, categories, cur) {
-  const spendTx = allTx.filter(tx => isEffective(tx) && tx.type === 'spend');
+  const spendTx = allTx.filter(tx => isEffective(tx) && (tx.type === 'spend' || tx.type === 'debt_payment'));
 
   // Group by category
   const byCat = {};
@@ -301,22 +315,21 @@ function drawTotalsChart(allTx, periods, cur) {
   if (totChart) { totChart.destroy(); totChart = null; }
 
   const labels = periods.map(p => p.label);
+  const sumType = (p, ...types) => allTx.filter(tx =>
+    isEffective(tx) && types.includes(tx.type) &&
+    parseISO(tx.date) >= p.start && parseISO(tx.date) <= p.end
+  ).reduce((s, tx) => s + Number(tx.amount), 0);
+
   const metrics = [
-    { label: 'Income',        type: 'income',       color: getCSSColor('--green')  },
-    { label: 'Spending',      type: 'spend',        color: getCSSColor('--red')    },
-    { label: 'Saved',         type: 'savings',      color: getCSSColor('--blue')   },
-    { label: 'Invested',      type: 'investment',   color: getCSSColor('--purple') },
-    { label: 'Withdrawn',     type: 'withdrawal',   color: getCSSColor('--amber')  },
-    { label: 'Debt Payments', type: 'debt_payment', color: getCSSColor('--cyan')   },
+    { label: 'Income',             color: getCSSColor('--green'),  fn: p => sumType(p, 'income') },
+    { label: 'Spend',              color: getCSSColor('--red'),    fn: p => sumType(p, 'spend') },
+    { label: 'Debt Payments',      color: getCSSColor('--amber'),  fn: p => sumType(p, 'debt_payment') },
+    { label: 'Net Savings & Inv.', color: getCSSColor('--blue'),   fn: p => sumType(p, 'savings', 'investment') - sumType(p, 'withdrawal') },
   ];
 
   const datasets = metrics.map(m => ({
     label: m.label,
-    data: periods.map(p =>
-      allTx.filter(tx => isEffective(tx) && tx.type === m.type &&
-        parseISO(tx.date) >= p.start && parseISO(tx.date) <= p.end
-      ).reduce((s, tx) => s + Number(tx.amount), 0)
-    ),
+    data: periods.map(m.fn),
     borderColor: m.color,
     backgroundColor: 'transparent',
     tension: 0.2,
