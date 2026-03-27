@@ -40,6 +40,7 @@ const CLR = {
   invest:  '#8b5cf6bf',
   balance: '#f59e0bbf',
   neutral: '#6b7280bf',
+  due:     '#b45309bf',
 };
 
 // ── MAIN RENDER ───────────────────────────────────────────────
@@ -234,9 +235,9 @@ function renderSummaryTiles(stats, cur) {
       </div>
     </div>`,
 
-    `<div class="card card-sm" style="border-left:3px solid ${CLR.neutral}">
-      <div class="card-title text-sm" style="color:${CLR.neutral}">${dueLabel}</div>
-      <div class="card-value text-mono" style="color:${CLR.neutral}">${fmtCurrency(due_amount, cur)}</div>
+    `<div class="card card-sm" style="border-left:3px solid ${CLR.due}">
+      <div class="card-title text-sm" style="color:${CLR.due}">${dueLabel}</div>
+      <div class="card-value text-mono" style="color:${CLR.due}">${fmtCurrency(due_amount, cur)}</div>
       <div style="margin-top:.5rem;padding-top:.4rem;border-top:1px solid var(--border);display:flex;flex-direction:column;gap:.15rem">
         ${subColored('Exp. balance', expected_eop)}
         ${runway !== null ? subText('Runway', `${Math.round(runway)}d`) : ''}
