@@ -139,11 +139,11 @@ function computeStats(state, period) {
   const invested     = sum('investment');
   const withdrawn    = sum('withdrawal');
 
-  const activeAcc = accounts.filter(a => !a.is_archived);
+  const activeAcc = accounts.filter(a => !a.is_archived && !a.is_excluded);
   const net_balance = activeAcc.filter(a => isLiquid(a))
     .reduce((s, a) => s + calcAccountBalance(a, transactions), 0);
   const net_worth = activeAcc
-    .filter(a => ['checking','savings','investment','credit','cash'].includes(effectiveType(a)))
+    .filter(a => ['checking','savings','investment','credit','cash','benefits'].includes(effectiveType(a)))
     .reduce((s, a) => s + calcAccountBalance(a, transactions), 0);
   const total_debt = activeAcc.filter(a => effectiveType(a) === 'loan')
     .reduce((s, a) => s + calcAccountBalance(a, transactions), 0);
@@ -533,7 +533,7 @@ function renderBreakdownRows(state, period, cur, view) {
   const expenseTotal = expenseTx.reduce((s,tx) => s + Number(tx.amount), 0);
 
   // Savings / investments net delta (contributed minus withdrawn)
-  const activeAcc    = accounts.filter(a => !a.is_archived);
+  const activeAcc    = accounts.filter(a => !a.is_archived && !a.is_excluded);
   const savingsIds   = new Set(activeAcc.filter(a => effectiveType(a) === 'savings').map(a => a.id));
   const investIds    = new Set(activeAcc.filter(a => effectiveType(a) === 'investment').map(a => a.id));
   const sumAmt       = arr => arr.reduce((s, tx) => s + Number(tx.amount), 0);
@@ -580,7 +580,7 @@ function drawCashflowChart(state, cur) {
   const pb = profiles[1]?.preferences?.salary_day;
   const periods = getPeriods(App.cycleMode(), { salary_day_a: pa, salary_day_b: pb }, 3);
 
-  const activeAcc  = state.accounts.filter(a => !a.is_archived);
+  const activeAcc  = state.accounts.filter(a => !a.is_archived && !a.is_excluded);
   const savingsIds = new Set(activeAcc.filter(a => effectiveType(a) === 'savings').map(a => a.id));
   const investIds  = new Set(activeAcc.filter(a => effectiveType(a) === 'investment').map(a => a.id));
 

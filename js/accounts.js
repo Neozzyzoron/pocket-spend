@@ -31,24 +31,54 @@ export function render(state) {
   const active = sortByOrder(accounts.filter(a => !a.is_archived), order);
   const archived = sortByOrder(accounts.filter(a => a.is_archived), order);
 
-  // Summary tiles
-  const sumBal = accs => accs.reduce((s, a) => s + calcAccountBalance(a, transactions), 0);
-  const liquid  = active.filter(a => isLiquid(a));
-  const savings = active.filter(a => effectiveType(a) === 'savings');
-  const invest  = active.filter(a => effectiveType(a) === 'investment');
-  const loans   = active.filter(a => effectiveType(a) === 'loan');
+  // Summary tiles — exclude is_excluded accounts from all totals
+  const sumBal = accs => accs.filter(a => !a.is_excluded).reduce((s, a) => s + calcAccountBalance(a, transactions), 0);
+  const liquid   = active.filter(a => isLiquid(a));
+  const savings  = active.filter(a => effectiveType(a) === 'savings');
+  const invest   = active.filter(a => effectiveType(a) === 'investment');
+  const loans    = active.filter(a => effectiveType(a) === 'loan');
+
+  // Liquid sublines: checking+cash vs credit vs benefits
+  const checkingBal  = sumBal(liquid.filter(a => ['checking','cash'].includes(effectiveType(a))));
+  const benefitsBal  = sumBal(liquid.filter(a => effectiveType(a) === 'benefits'));
+
+  // Savings/investment sublines: contributed and withdrawn
+  const savingsAccIds = new Set(savings.filter(a => !a.is_excluded).map(a => a.id));
+  const investAccIds  = new Set(invest.filter(a => !a.is_excluded).map(a => a.id));
+  const savingsContrib   = transactions.filter(tx => isEffective(tx) && tx.type === 'savings'    && savingsAccIds.has(tx.to_account_id)).reduce((s, tx) => s + Number(tx.amount), 0);
+  const savingsWithdrawn = transactions.filter(tx => isEffective(tx) && tx.type === 'withdrawal' && savingsAccIds.has(tx.account_id)).reduce((s, tx) => s + Number(tx.amount), 0);
+  const investContrib    = transactions.filter(tx => isEffective(tx) && tx.type === 'investment' && investAccIds.has(tx.to_account_id)).reduce((s, tx) => s + Number(tx.amount), 0);
+  const investWithdrawn  = transactions.filter(tx => isEffective(tx) && tx.type === 'withdrawal' && investAccIds.has(tx.account_id)).reduce((s, tx) => s + Number(tx.amount), 0);
+
+  const sub = (label, val, neg = false) =>
+    `<div class="flex justify-between" style="font-size:.68rem;color:var(--text2);margin-top:1px">
+      <span>${label}</span><span class="text-mono${neg ? ';color:var(--red)' : ''}">${fmtCurrency(val, cur)}</span>
+    </div>`;
 
   const summaryTiles = `
     <div class="stat-grid" style="grid-template-columns:repeat(4,1fr);margin-bottom:.5rem">
-      ${[
-        { label: 'Liquid',      val: sumBal(liquid),  neg: false },
-        { label: 'Savings',     val: sumBal(savings), neg: false },
-        { label: 'Investments', val: sumBal(invest),  neg: false },
-        { label: 'Loans',       val: sumBal(loans),   neg: true  },
-      ].map(t => `<div class="card card-sm">
-        <div class="card-title" style="font-size:.7rem">${t.label}</div>
-        <div class="card-value text-mono" style="font-size:1rem;${t.neg && sumBal !== 0 ? 'color:var(--red)' : ''}">${fmtCurrency(t.val, cur)}</div>
-      </div>`).join('')}
+      <div class="card card-sm">
+        <div style="font-size:.65rem;font-weight:600;color:var(--text2);text-transform:uppercase;letter-spacing:.05em;margin-bottom:.15rem">Liquid · Balance</div>
+        <div class="text-mono" style="font-size:1rem;font-weight:700">${fmtCurrency(sumBal(liquid), cur)}</div>
+        ${sub('Checking & Cash', checkingBal)}
+        ${benefitsBal ? sub('Benefits', benefitsBal) : ''}
+      </div>
+      <div class="card card-sm">
+        <div style="font-size:.65rem;font-weight:600;color:var(--text2);text-transform:uppercase;letter-spacing:.05em;margin-bottom:.15rem">Savings · Balance</div>
+        <div class="text-mono" style="font-size:1rem;font-weight:700">${fmtCurrency(sumBal(savings), cur)}</div>
+        ${sub('Contributed', savingsContrib)}
+        ${savingsWithdrawn ? sub('Withdrawn', savingsWithdrawn) : ''}
+      </div>
+      <div class="card card-sm">
+        <div style="font-size:.65rem;font-weight:600;color:var(--text2);text-transform:uppercase;letter-spacing:.05em;margin-bottom:.15rem">Investments · Balance</div>
+        <div class="text-mono" style="font-size:1rem;font-weight:700">${fmtCurrency(sumBal(invest), cur)}</div>
+        ${sub('Contributed', investContrib)}
+        ${investWithdrawn ? sub('Withdrawn', investWithdrawn) : ''}
+      </div>
+      <div class="card card-sm">
+        <div style="font-size:.65rem;font-weight:600;color:var(--text2);text-transform:uppercase;letter-spacing:.05em;margin-bottom:.15rem">Loans · Balance</div>
+        <div class="text-mono" style="font-size:1rem;font-weight:700;color:var(--red)">${fmtCurrency(sumBal(loans), cur)}</div>
+      </div>
     </div>`;
 
   let mainContent;
@@ -126,6 +156,9 @@ export function render(state) {
       if (acc) openAccountModal(state, acc);
     });
   });
+  el.querySelectorAll('.acc-exclude-btn').forEach(btn => {
+    btn.addEventListener('click', e => { e.stopPropagation(); toggleExclude(state, btn.dataset.id); });
+  });
   el.querySelectorAll('.acc-archive-btn').forEach(btn => {
     btn.addEventListener('click', e => { e.stopPropagation(); toggleArchive(state, btn.dataset.id); });
   });
@@ -171,11 +204,11 @@ function renderAccountCard(a, state, cur) {
       </div>`;
   }
 
-  return `<div class="card" style="border-left:3px solid ${a.color || 'var(--accent)'};padding:.6rem .75rem;${isArchived ? 'opacity:.55' : ''}">
+  return `<div class="card" style="border-left:3px solid ${a.color || 'var(--accent)'};padding:.6rem .75rem;${isArchived ? 'opacity:.55' : ''}${a.is_excluded ? ';opacity:.6' : ''}">
     <div class="flex justify-between items-start" style="gap:.5rem;margin-bottom:.2rem">
       <div style="min-width:0">
         <div style="font-weight:600;font-size:.85rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${escHtml(a.name)}</div>
-        <div style="font-size:.7rem;color:var(--text2)">${escHtml(typeLabel)}${isLoan && balance <= 0 ? ' · <span style="color:var(--green)">Paid off ✓</span>' : ''}</div>
+        <div style="font-size:.7rem;color:var(--text2)">${escHtml(typeLabel)}${isLoan && balance <= 0 ? ' · <span style="color:var(--green)">Paid off ✓</span>' : ''}${a.is_excluded ? ' · <span style="color:var(--amber)">Excluded</span>' : ''}</div>
       </div>
       <div class="text-mono" style="font-size:.95rem;font-weight:600;white-space:nowrap;${isLoan ? 'color:var(--red)' : balance < 0 ? 'color:var(--red)' : ''}">${fmtCurrency(balance, cur)}</div>
     </div>
@@ -184,6 +217,7 @@ function renderAccountCard(a, state, cur) {
     <div class="flex gap-1" style="margin-top:.4rem;flex-wrap:wrap">
       <button class="btn btn-ghost btn-sm acc-edit-btn" data-id="${a.id}" style="font-size:.7rem;padding:.15rem .45rem">Edit</button>
       <button class="btn btn-ghost btn-sm acc-adjust-btn" data-id="${a.id}" style="font-size:.7rem;padding:.15rem .45rem">Adjust</button>
+      <button class="btn btn-ghost btn-sm acc-exclude-btn" data-id="${a.id}" style="font-size:.7rem;padding:.15rem .45rem">${a.is_excluded ? 'Include' : 'Exclude'}</button>
       <button class="btn btn-ghost btn-sm acc-archive-btn" data-id="${a.id}" style="font-size:.7rem;padding:.15rem .45rem">${isArchived ? 'Unarchive' : 'Archive'}</button>
       <button class="btn btn-ghost btn-sm btn-danger acc-delete-btn" data-id="${a.id}" style="font-size:.7rem;padding:.15rem .45rem">Delete</button>
     </div>
@@ -226,6 +260,7 @@ function openAccountModal(state, acc = null) {
           <option value="credit"${et==='credit'?' selected':''}>Credit</option>
           <option value="loan"${et==='loan'?' selected':''}>Loan</option>
           <option value="cash"${et==='cash'?' selected':''}>Cash</option>
+          <option value="benefits"${et==='benefits'?' selected':''}>Benefits</option>
           <option value="custom"${acc?.type==='custom'?' selected':''}>Custom</option>
         </select>
       </div>
@@ -431,7 +466,23 @@ function openAdjustModal(state, acc) {
   });
 }
 
-// ── ARCHIVE / DELETE ──────────────────────────────────────────
+// ── EXCLUDE / ARCHIVE / DELETE ───────────────────────────────
+async function toggleExclude(state, id) {
+  const acc = state.accounts.find(a => a.id === id);
+  if (!acc) return;
+  const newVal = !acc.is_excluded;
+  const { error } = await App.supabase.from('accounts')
+    .update({ is_excluded: newVal })
+    .eq('id', id).eq('household_id', App.state.household.id);
+  if (!error) {
+    acc.is_excluded = newVal;
+    App.toast(newVal ? 'Account excluded from totals' : 'Account included in totals', 'success');
+    render(state);
+  } else {
+    App.toast('Error: ' + error.message, 'error');
+  }
+}
+
 async function toggleArchive(state, id) {
   const acc = state.accounts.find(a => a.id === id);
   if (!acc) return;

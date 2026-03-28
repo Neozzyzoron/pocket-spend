@@ -271,7 +271,7 @@ export function effectiveType(account) {
 
 /** Is account liquid (for from-account filters) */
 export function isLiquid(account) {
-  return ['checking', 'credit', 'cash'].includes(effectiveType(account));
+  return ['checking', 'credit', 'cash', 'benefits'].includes(effectiveType(account));
 }
 
 // ── MISC HELPERS ─────────────────────────────────────────────
