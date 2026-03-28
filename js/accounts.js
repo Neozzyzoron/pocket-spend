@@ -252,17 +252,19 @@ function openAccountModal(state, acc = null) {
         <div class="form-hint">New types are saved automatically for future accounts</div>
       </div>
     </div>
-    <div class="form-group">
-      <label class="form-label">Expected rate % p.a.</label>
-      <input class="form-input text-mono" type="number" id="af-rate" step="0.01" value="${acc?.expected_rate || ''}" placeholder="e.g. 3.5" />
-      <div class="form-hint">Savings/investment only</div>
-    </div>
-    <div class="form-group">
-      <label class="form-label">Default owner</label>
-      <select class="form-select" id="af-owner">
-        <option value="">— None —</option>
-        ${state.profiles.map(p => `<option value="${p.id}"${acc?.default_user_id === p.id ? ' selected' : ''}>${escHtml(p.display_name)}</option>`).join('')}
-      </select>
+    <div class="form-row">
+      <div class="form-group" style="flex:1">
+        <label class="form-label">Default owner</label>
+        <select class="form-select" id="af-owner">
+          <option value="">— None —</option>
+          ${state.profiles.map(p => `<option value="${p.id}"${acc?.default_user_id === p.id ? ' selected' : ''}>${escHtml(p.display_name)}</option>`).join('')}
+        </select>
+      </div>
+      <div class="form-group" style="flex:1">
+        <label class="form-label">Expected rate % p.a.</label>
+        <input class="form-input text-mono" type="number" id="af-rate" step="0.01" value="${acc?.expected_rate || ''}" placeholder="e.g. 3.5" />
+        <div class="form-hint">Savings/investment only</div>
+      </div>
     </div>
     <div class="form-group">
       <label class="form-label">Color</label>
