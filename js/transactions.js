@@ -782,7 +782,7 @@ export function openTxModal(state) {
         const t = state.transactions.find(x => x.id === btn.dataset.id);
         if (!t) return;
         document.getElementById('tf-desc').value = t.description || '';
-        document.getElementById('tf-type').value = t.type || 'spend';
+        document.getElementById('tf-type').value = toFormType(t.type) || 'spend';
         document.getElementById('tf-cat').value = t.category_id || '';
         document.getElementById('tf-amount').value = t.amount || '';
         if (t.user_id) document.getElementById('tf-person').value = t.user_id;
@@ -827,7 +827,7 @@ export function openTxModal(state) {
     if (cat && !document.getElementById('tf-desc').value) {
       document.getElementById('tf-desc').value = cat.name;
     }
-    renderTxAccountFields(state, tx);
+    renderTxAccountFields(state, null);
   });
 
   document.getElementById('tf-type')?.addEventListener('change', () => renderTxAccountFields(state, null));
