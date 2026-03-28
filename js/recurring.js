@@ -10,6 +10,14 @@ import {
 } from './utils.js';
 
 const DOW_LABELS = ['Mon','Tue','Wed','Thu','Fri','Sat','Sun'];
+
+function buildDayOfWeekSelect(selected) {
+  return DOW_LABELS.map((d, i) => `<option value="${i}"${Number(selected) === i ? ' selected' : ''}>${d}</option>`).join('');
+}
+function buildDayOfMonthSelect(selected) {
+  return Array.from({length: 31}, (_, i) => i + 1)
+    .map(d => `<option value="${d}"${Number(selected) === d ? ' selected' : ''}>${d}</option>`).join('');
+}
 const MONTH_LABELS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
 
 // ── MAIN RENDER ───────────────────────────────────────────────
@@ -335,8 +343,12 @@ function openTemplateModal(state, tmpl = null) {
         </select>
       </div>
       <div class="form-group" style="flex:1" id="tf2-day-group">
-        <label class="form-label">Day</label>
-        <input class="form-input" type="number" id="tf2-day" min="1" max="31" value="${tmpl?.day_of_month || tmpl?.day_of_week !== undefined ? (tmpl.frequency === 'weekly' || tmpl.frequency === 'bi-weekly' ? tmpl.day_of_week : tmpl.day_of_month) : new Date().getDate()}" />
+        <label class="form-label" id="tf2-day-label">${(tmpl?.frequency === 'weekly' || tmpl?.frequency === 'bi-weekly') ? 'Day of week' : 'Day of month'}</label>
+        <select class="form-select" id="tf2-day">
+          ${(tmpl?.frequency === 'weekly' || tmpl?.frequency === 'bi-weekly')
+            ? buildDayOfWeekSelect(tmpl?.day_of_week ?? 0)
+            : buildDayOfMonthSelect(tmpl?.day_of_month || new Date().getDate())}
+        </select>
       </div>
     </div>
     <div class="form-row" id="tf2-month-row" style="${tmpl?.frequency === 'annually' ? '' : 'display:none'}">
@@ -384,16 +396,16 @@ function openTemplateModal(state, tmpl = null) {
   });
   document.getElementById('tf2-freq')?.addEventListener('change', e => {
     const freq = e.target.value;
-    const dayGroup = document.getElementById('tf2-day-group');
+    const dayLabel = document.getElementById('tf2-day-label');
+    const daySelect = document.getElementById('tf2-day');
     const monthRow = document.getElementById('tf2-month-row');
-    if (dayGroup) {
-      const dayLabel = dayGroup.querySelector('.form-label');
+    if (daySelect) {
       if (freq === 'weekly' || freq === 'bi-weekly') {
-        if (dayLabel) dayLabel.textContent = 'Day of week (0=Mon)';
-        document.getElementById('tf2-day').max = 6;
+        if (dayLabel) dayLabel.textContent = 'Day of week';
+        daySelect.innerHTML = buildDayOfWeekSelect(0);
       } else {
         if (dayLabel) dayLabel.textContent = 'Day of month';
-        document.getElementById('tf2-day').max = 31;
+        daySelect.innerHTML = buildDayOfMonthSelect(1);
       }
     }
     if (monthRow) monthRow.style.display = freq === 'annually' ? '' : 'none';
@@ -469,7 +481,7 @@ async function saveTmpl(state, existing = null) {
   const account_id = document.getElementById('tf2-acc')?.value || null;
   const to_account_id = document.getElementById('tf2-to-acc')?.value || null;
   const frequency = document.getElementById('tf2-freq')?.value;
-  const dayVal = parseInt(document.getElementById('tf2-day')?.value) || 1;
+  const dayVal = parseInt(document.getElementById('tf2-day')?.value, 10);
   const month_of_year = parseInt(document.getElementById('tf2-month')?.value) || null;
   const start_date = document.getElementById('tf2-start')?.value;
   const notes = document.getElementById('tf2-notes')?.value.trim() || null;
