@@ -509,8 +509,9 @@ h3 { font-size: 1rem; font-weight: 600; }
   display: flex; align-items: center; justify-content: space-between; gap: .75rem;
   margin-bottom: 1rem;
 }
-.card-title { font-size: .8rem; font-weight: 500; color: var(--text2); text-transform: uppercase; letter-spacing: .04em; }
-.card-value { font-size: 1.6rem; font-weight: 700; font-family: var(--font-mono); letter-spacing: -.02em; line-height: 1.15; }
+.card-title { font-size: .8rem; font-weight: 500; color: var(--text2); text-transform: uppercase; letter-spacing: .04em; overflow-wrap: break-word; }
+.card-value { font-size: clamp(1rem, 2.5vw, 1.6rem); font-weight: 700; font-family: var(--font-mono); letter-spacing: -.02em; line-height: 1.15; }
+
 .card-value-sm { font-size: 1.1rem; font-weight: 600; font-family: var(--font-mono); }
 .card-meta { font-size: .75rem; color: var(--text3); margin-top: .2rem; }
 
@@ -521,6 +522,7 @@ h3 { font-size: 1rem; font-weight: 600; }
   margin-bottom: 1.5rem;
   /* inline style sets desktop cols; media queries override responsively */
 }
+.stat-grid > * { min-width: 0; }
 
 /* ── BADGES ──────────────────────────────────────────────────── */
 .badge {
@@ -839,7 +841,7 @@ h3 { font-size: 1rem; font-weight: 600; }
   .form-row .form-group { margin-bottom: .75rem; }
   .form-row .form-group:last-child { margin-bottom: 0; }
 
-  .card-value { font-size: 1.35rem; }
+  .card-value { font-size: clamp(.9rem, 4vw, 1.35rem); }
 }
 
 /* ── SCROLLBAR (global) ──────────────────────────────────────── */
