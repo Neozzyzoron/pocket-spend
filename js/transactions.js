@@ -77,10 +77,10 @@ export function render(state) {
     <div class="section" style="padding-bottom:0;padding-top:.5rem">
       <div class="toggle-group">
         <button class="toggle-group-btn tx-view-btn${viewMode==='flat'?' active':''}" data-view="flat">Flat</button>
+        <button class="toggle-group-btn tx-view-btn${viewMode==='tx_type'?' active':''}" data-view="tx_type">Tx Type</button>
         <button class="toggle-group-btn tx-view-btn${viewMode==='nature'?' active':''}" data-view="nature">Nature</button>
         <button class="toggle-group-btn tx-view-btn${viewMode==='group'?' active':''}" data-view="group">Group</button>
         <button class="toggle-group-btn tx-view-btn${viewMode==='sub'?' active':''}" data-view="sub">Subcategory</button>
-        <button class="toggle-group-btn tx-view-btn${viewMode==='tx_type'?' active':''}" data-view="tx_type">Transaction Type</button>
       </div>
     </div>
 

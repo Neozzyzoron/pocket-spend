@@ -6,7 +6,7 @@
 import {
   fmtCurrency, fmtPct, escHtml, parseISO, toISO, isEffective,
   effectiveType, calcAccountBalance, isLiquid, getPeriods,
-  buildCategoryTree, getCSSColor,
+  buildCategoryTree, getCSSColor, TX_TYPE_LABELS,
 } from './utils.js';
 
 let timelineChart = null;
@@ -20,7 +20,7 @@ export function render(state) {
   const forecastN = parseInt(el.dataset.forecastN || '3');
   const personFilter = el.dataset.personFilter || '';
   const avgWindow = state.prefs.forecast_avg_window || 3;
-  const viewMode = el.dataset.viewMode || 'group';
+  const viewMode = el.dataset.viewMode || 'type';
   const filterNatures   = el.dataset.filterNatures   ? el.dataset.filterNatures.split(',').filter(Boolean)   : [];
   const filterGroups    = el.dataset.filterGroups    ? el.dataset.filterGroups.split(',').filter(Boolean)    : [];
   const filterSubcats   = el.dataset.filterSubcats   ? el.dataset.filterSubcats.split(',').filter(Boolean)   : [];
@@ -76,8 +76,8 @@ export function render(state) {
       <div class="flex gap-2 items-center" style="flex-wrap:wrap;margin-top:.625rem;padding-top:.625rem;border-top:1px solid var(--border)">
         <span class="text-sm text-muted">View:</span>
         <div class="toggle-group">
-          ${['nature','group','subcategory'].map(v =>
-            `<button class="toggle-group-btn fc-view-btn${viewMode===v?' active':''}" data-view="${v}">${v.charAt(0).toUpperCase()+v.slice(1)}</button>`
+          ${[['type','Tx Type'],['nature','Nature'],['group','Group'],['subcategory','Subcategory']].map(([v,l]) =>
+            `<button class="toggle-group-btn fc-view-btn${viewMode===v?' active':''}" data-view="${v}">${l}</button>`
           ).join('')}
         </div>
         ${renderCascadingFilterDropdowns(cascOpts, filterNatures, filterGroups, filterSubcats)}
@@ -861,7 +861,7 @@ function renderCategoryBreakdown(state, periods, currentPeriod, forecastN, cur, 
   for (const tx of transactions.filter(tx => isEffective(tx) && tx.type === 'spend' && catFilter(tx.category_id, tx.type))) {
     const d = parseISO(tx.date);
     if (d < histStart || d > histEnd) continue;
-    const key = groupKey(tx.category_id, categories, viewMode);
+    const key = groupKey(tx.category_id, categories, viewMode, tx.type);
     actualSpend[key] = (actualSpend[key] || 0) + Number(tx.amount);
   }
 
@@ -871,7 +871,7 @@ function renderCategoryBreakdown(state, periods, currentPeriod, forecastN, cur, 
   for (const period of futurePeriods) {
     for (const t of recurringTemplates.filter(x => x.is_active && x.type === 'spend' && catFilter(x.category_id, x.type))) {
       const count = calcOccurrences(t, period);
-      const key = groupKey(t.category_id, categories, viewMode);
+      const key = groupKey(t.category_id, categories, viewMode, t.type);
       projSpend[key] = (projSpend[key] || 0) + Number(t.amount) * count;
     }
   }
@@ -933,7 +933,8 @@ function renderCategoryBreakdown(state, periods, currentPeriod, forecastN, cur, 
 // ── CATEGORY FILTER HELPERS ───────────────────────────────────
 
 // Returns a key for grouping a category_id by the current viewMode
-function groupKey(categoryId, categories, viewMode) {
+function groupKey(categoryId, categories, viewMode, txType) {
+  if (viewMode === 'type') return txType || '__none__';
   if (!categoryId) return '__none__';
   const cat = categories.find(c => c.id === categoryId);
   if (!cat) return '__none__';
@@ -946,6 +947,7 @@ function groupKey(categoryId, categories, viewMode) {
 // Returns display label for a group key
 function groupLabel(key, categories, viewMode) {
   if (key === '__none__') return 'Uncategorised';
+  if (viewMode === 'type')   return TX_TYPE_LABELS[key] || key;
   if (viewMode === 'nature') return key;
   const cat = categories.find(c => c.id === key);
   if (!cat) return 'Uncategorised';

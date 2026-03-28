@@ -5,7 +5,7 @@
 
 import {
   fmtCurrency, fmtPct, escHtml, parseISO, isEffective,
-  effectiveType, calcAccountBalance, getPeriods, isLiquid, getCSSColor,
+  effectiveType, calcAccountBalance, getPeriods, isLiquid, getCSSColor, TX_TYPE_LABELS,
 } from './utils.js';
 
 let cfChart = null, nwChart = null, personChart = null, totChart = null, budPerfChart = null;
@@ -18,6 +18,7 @@ export function render(state) {
   const periodN = parseInt(el.dataset.periodN || '6');
   const accountFilter = el.dataset.accountFilter || '';
   const personFilter = el.dataset.personFilter || '';
+  const breakdownView = el.dataset.breakdownView || 'type';
 
   const pa = state.profiles[0]?.preferences?.salary_day;
   const pb = state.profiles[1]?.preferences?.salary_day;
@@ -94,7 +95,7 @@ export function render(state) {
     ${state.budgets.length ? renderBudgetPerformance(state, periods, cur) : ''}
 
     <!-- Spending breakdown table -->
-    ${renderBreakdownTable(allTx, periods, state.categories, cur)}
+    ${renderBreakdownTable(allTx, periods, state.categories, cur, breakdownView)}
   `;
 
   // Wire filters
@@ -106,6 +107,9 @@ export function render(state) {
   });
   document.getElementById('analytics-person-filter')?.addEventListener('change', e => {
     el.dataset.personFilter = e.target.value; render(state);
+  });
+  el.querySelectorAll('.analytics-breakdown-btn').forEach(btn => {
+    btn.addEventListener('click', () => { el.dataset.breakdownView = btn.dataset.view; render(state); });
   });
 
   // Draw charts
@@ -268,38 +272,56 @@ function drawPersonChart(allTx, periods, profiles, cur) {
 }
 
 // ── BREAKDOWN TABLE ───────────────────────────────────────────
-function renderBreakdownTable(allTx, periods, categories, cur) {
+function renderBreakdownTable(allTx, periods, categories, cur, viewMode = 'type') {
   const spendTx = allTx.filter(tx => isEffective(tx) && (tx.type === 'spend' || tx.type === 'debt_payment'));
 
-  // Group by category
-  const byCat = {};
-  for (const tx of spendTx) {
+  // Derive row key from viewMode
+  function rowKey(tx) {
+    if (viewMode === 'type') return TX_TYPE_LABELS[tx.type] || tx.type;
     const cat = categories.find(c => c.id === tx.category_id);
-    const key = cat ? `${cat.icon} ${cat.name}` : 'Uncategorised';
-    if (!byCat[key]) byCat[key] = { name: key, periodAmts: periods.map(() => 0), total: 0 };
-    const idx = periods.findIndex(p => parseISO(tx.date) >= p.start && parseISO(tx.date) <= p.end);
-    if (idx !== -1) byCat[key].periodAmts[idx] += Number(tx.amount);
-    byCat[key].total += Number(tx.amount);
+    if (!cat) return 'Uncategorised';
+    if (viewMode === 'nature') return cat.nature || 'Uncategorised';
+    if (viewMode === 'group') {
+      const g = cat.parent_id ? (categories.find(c => c.id === cat.parent_id) || cat) : cat;
+      return `${g.icon || ''} ${g.name}`.trim();
+    }
+    return `${cat.icon || ''} ${cat.name}`.trim(); // subcategory
   }
 
-  const rows = Object.values(byCat).sort((a,b) => b.total - a.total);
+  const byKey = {};
+  for (const tx of spendTx) {
+    const key = rowKey(tx);
+    if (!byKey[key]) byKey[key] = { name: key, periodAmts: periods.map(() => 0), total: 0 };
+    const idx = periods.findIndex(p => parseISO(tx.date) >= p.start && parseISO(tx.date) <= p.end);
+    if (idx !== -1) byKey[key].periodAmts[idx] += Number(tx.amount);
+    byKey[key].total += Number(tx.amount);
+  }
+
+  const rows = Object.values(byKey).sort((a,b) => b.total - a.total);
   if (!rows.length) return '';
 
+  const views = [['type','Tx Type'],['nature','Nature'],['group','Group'],['sub','Subcategory']];
+
   return `<div class="section">
-    <div class="section-header"><div class="section-title">Spending by Category</div></div>
+    <div class="section-header">
+      <div class="section-title">Spending Breakdown</div>
+      <div class="toggle-group">
+        ${views.map(([v,l]) => `<button class="toggle-group-btn analytics-breakdown-btn${viewMode===v?' active':''}" data-view="${v}">${l}</button>`).join('')}
+      </div>
+    </div>
     <div class="card" style="padding:0">
       <div class="table-wrap">
         <table class="table">
           <thead><tr>
-            <th>Category</th>
+            <th>${views.find(([v]) => v === viewMode)?.[1] || 'Category'}</th>
             ${periods.map(p => `<th class="amount-col">${escHtml(p.label)}</th>`).join('')}
             <th class="amount-col">Total</th>
           </tr></thead>
           <tbody>
             ${rows.map(r => `<tr>
               <td class="text-sm">${escHtml(r.name)}</td>
-              ${r.periodAmts.map(a => `<td class="amount-col text-mono text-sm">${a > 0 ? fmtCurrency(a, App.currency()) : '—'}</td>`).join('')}
-              <td class="amount-col text-mono fw-600">${fmtCurrency(r.total, App.currency())}</td>
+              ${r.periodAmts.map(a => `<td class="amount-col text-mono text-sm">${a > 0 ? fmtCurrency(a, cur) : '—'}</td>`).join('')}
+              <td class="amount-col text-mono fw-600">${fmtCurrency(r.total, cur)}</td>
             </tr>`).join('')}
           </tbody>
         </table>
