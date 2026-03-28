@@ -12,6 +12,7 @@ import { openBudgetModal } from './budgets.js';
 
 // Persists collapse state within the session
 const collapsedGroups = new Set();
+let catViewMode = 'tree'; // 'tree' | 'nature' | 'summary'
 
 // ── ICON PICKER DATA ──────────────────────────────────────────
 const ICONS = {
@@ -704,65 +705,101 @@ function wireAccountsSection(state) {
 }
 
 // ── 5. CATEGORIES ─────────────────────────────────────────────
+const NATURE_BUCKETS  = ['Income','Essentials','Variables','Discretionary','Savings','Investments','Debt'];
+const SUMMARY_BUCKETS = ['Income','Spend','S&I','Debt'];
+const NATURE_TO_SUMMARY = {
+  Income:'Income', Essentials:'Spend', Variables:'Spend',
+  Discretionary:'Spend', Savings:'S&I', Investments:'S&I', Debt:'Debt',
+};
+
 function renderCategoriesSection(state) {
   const { categories } = state;
   const { groups, subsByParent } = buildCategoryTree(categories);
 
+  const renderSub = s => `<div class="cat-sub-row" data-id="${s.id}" style="padding:.5rem 1rem .5rem 2.5rem;border-top:1px solid var(--border)40">
+    <div class="flex items-center justify-between">
+      <div class="flex items-center gap-2">
+        <input type="checkbox" class="settings-cat-cb" data-id="${s.id}" style="flex-shrink:0" />
+        <span class="drag-handle" style="cursor:grab;color:var(--text-muted);font-size:1rem;user-select:none">⠿</span>
+        <span>${escHtml(s.icon || '')}</span>
+        ${s.color ? `<span style="width:.5rem;height:.5rem;border-radius:50%;background:${escHtml(s.color)};flex-shrink:0;display:inline-block"></span>` : ''}
+        <span class="text-sm">${escHtml(s.name)}</span>
+        <span class="badge badge-neutral text-xs">${s.nature || ''}</span>
+      </div>
+      <div class="flex gap-1">
+        <button class="btn btn-ghost btn-sm cat-edit-btn" data-id="${s.id}">Edit</button>
+        <button class="btn btn-ghost btn-sm btn-danger cat-delete-btn" data-id="${s.id}">✕</button>
+      </div>
+    </div>
+  </div>`;
+
+  const renderGroup = (g, subs, showDrag = true) => {
+    const isCollapsed = collapsedGroups.has(g.id);
+    return `<div class="cat-group-row" data-id="${g.id}" style="border-bottom:1px solid var(--border)">
+      <div class="flex items-center justify-between" style="padding:.65rem 1rem">
+        <div class="flex items-center gap-2" style="cursor:pointer;flex:1" data-collapse-toggle="${g.id}">
+          <input type="checkbox" class="settings-cat-cb" data-id="${g.id}" onclick="event.stopPropagation()" style="flex-shrink:0" />
+          ${showDrag ? `<span class="drag-handle" style="cursor:grab;color:var(--text-muted);font-size:1rem;user-select:none" onclick="event.stopPropagation()">⠿</span>` : ''}
+          <span class="cat-collapse-chevron text-muted" style="font-size:.75rem;width:1rem;text-align:center;transition:transform .15s">${isCollapsed ? '▸' : '▾'}</span>
+          <span style="font-size:1.1rem">${escHtml(g.icon || '')}</span>
+          ${g.color ? `<span style="width:.6rem;height:.6rem;border-radius:50%;background:${escHtml(g.color)};flex-shrink:0;display:inline-block"></span>` : ''}
+          <div>
+            <div class="fw-500">${escHtml(g.name)}</div>
+            <div class="text-sm text-muted">${g.nature || ''} · ${subs.length} subcategor${subs.length === 1 ? 'y' : 'ies'}</div>
+          </div>
+        </div>
+        <div class="flex gap-1">
+          <button class="btn btn-ghost btn-sm cat-edit-btn" data-id="${g.id}">Edit</button>
+          <button class="btn btn-ghost btn-sm cat-add-sub-btn" data-id="${g.id}">+ Sub</button>
+          <button class="btn btn-ghost btn-sm btn-danger cat-delete-btn" data-id="${g.id}">✕</button>
+        </div>
+      </div>
+      <div class="cat-subs-list${isCollapsed ? ' hidden' : ''}" data-parent="${g.id}">
+        ${subs.map(s => renderSub(s)).join('')}
+      </div>
+    </div>`;
+  };
+
+  let listHtml;
+  if (catViewMode === 'tree') {
+    listHtml = groups.length === 0
+      ? `<div class="empty-state">No categories yet</div>`
+      : `<div id="cat-groups-list">${groups.map(g => renderGroup(g, subsByParent[g.id] || [])).join('')}</div>`;
+  } else {
+    const BUCKETS = catViewMode === 'summary' ? SUMMARY_BUCKETS : NATURE_BUCKETS;
+    const getBucket = g => catViewMode === 'summary'
+      ? (NATURE_TO_SUMMARY[g.nature] || null)
+      : (g.nature || null);
+    const byBucket = {};
+    for (const g of groups) {
+      const b = getBucket(g) || 'Uncategorised';
+      (byBucket[b] = byBucket[b] || []).push(g);
+    }
+    const allBuckets = [...BUCKETS, ...(byBucket['Uncategorised'] ? ['Uncategorised'] : [])];
+    listHtml = allBuckets.map(bucket => {
+      const bg = byBucket[bucket];
+      if (!bg?.length) return '';
+      return `<div>
+        <div style="padding:.4rem 1rem;font-size:.7rem;font-weight:600;color:var(--text2);text-transform:uppercase;letter-spacing:.05em;background:var(--bg2,var(--bg));border-bottom:1px solid var(--border)">${escHtml(bucket)}</div>
+        ${bg.map(g => renderGroup(g, subsByParent[g.id] || [], false)).join('')}
+      </div>`;
+    }).join('') || `<div class="empty-state">No categories yet</div>`;
+  }
+
   return `<div class="section">
     <div class="section-header">
       <div class="section-title">Categories</div>
-      <div class="flex gap-2 items-center">
+      <div class="flex gap-2 items-center" style="flex-wrap:wrap">
+        <div class="toggle-group">
+          ${[['tree','Tree'],['nature','Nature'],['summary','Summary']].map(([v,l]) =>
+            `<button class="toggle-group-btn cat-view-btn${catViewMode===v?' active':''}" data-view="${v}">${l}</button>`
+          ).join('')}
+        </div>
         <button class="btn btn-danger btn-sm hidden" id="settings-cat-delete-sel">Delete selected</button>
         <button class="btn btn-primary btn-sm" id="settings-add-group-btn">+ Add group</button>
       </div>
     </div>
-    <div class="card" style="padding:0">
-      ${groups.length === 0 ? `<div class="empty-state">No categories yet</div>` :
-        `<div id="cat-groups-list">` +
-        groups.map(g => {
-          const subs = subsByParent[g.id] || [];
-          const isCollapsed = collapsedGroups.has(g.id);
-          return `<div class="cat-group-row" data-id="${g.id}" style="border-bottom:1px solid var(--border)">
-            <div class="flex items-center justify-between" style="padding:.65rem 1rem">
-              <div class="flex items-center gap-2" style="cursor:pointer;flex:1" data-collapse-toggle="${g.id}">
-                <input type="checkbox" class="settings-cat-cb" data-id="${g.id}" onclick="event.stopPropagation()" style="flex-shrink:0" />
-                <span class="drag-handle" style="cursor:grab;color:var(--text-muted);font-size:1rem;user-select:none" onclick="event.stopPropagation()">⠿</span>
-                <span class="cat-collapse-chevron text-muted" style="font-size:.75rem;width:1rem;text-align:center;transition:transform .15s">${isCollapsed ? '▸' : '▾'}</span>
-                <span style="font-size:1.1rem">${escHtml(g.icon || '')}</span>
-                ${g.color ? `<span style="width:.6rem;height:.6rem;border-radius:50%;background:${escHtml(g.color)};flex-shrink:0;display:inline-block"></span>` : ''}
-                <div>
-                  <div class="fw-500">${escHtml(g.name)}</div>
-                  <div class="text-sm text-muted">${g.nature || ''} · ${subs.length} subcategor${subs.length === 1 ? 'y' : 'ies'}</div>
-                </div>
-              </div>
-              <div class="flex gap-1">
-                <button class="btn btn-ghost btn-sm cat-edit-btn" data-id="${g.id}">Edit</button>
-                <button class="btn btn-ghost btn-sm cat-add-sub-btn" data-id="${g.id}">+ Sub</button>
-                <button class="btn btn-ghost btn-sm btn-danger cat-delete-btn" data-id="${g.id}">✕</button>
-              </div>
-            </div>
-            <div class="cat-subs-list${isCollapsed ? ' hidden' : ''}" data-parent="${g.id}">
-              ${subs.map(s => `<div class="cat-sub-row" data-id="${s.id}" style="padding:.5rem 1rem .5rem 2.5rem;border-top:1px solid var(--border)40">
-                <div class="flex items-center justify-between">
-                  <div class="flex items-center gap-2">
-                    <input type="checkbox" class="settings-cat-cb" data-id="${s.id}" style="flex-shrink:0" />
-                    <span class="drag-handle" style="cursor:grab;color:var(--text-muted);font-size:1rem;user-select:none">⠿</span>
-                    <span>${escHtml(s.icon || '')}</span>
-                    ${s.color ? `<span style="width:.5rem;height:.5rem;border-radius:50%;background:${escHtml(s.color)};flex-shrink:0;display:inline-block"></span>` : ''}
-                    <span class="text-sm">${escHtml(s.name)}</span>
-                    <span class="badge badge-neutral text-xs">${s.nature || ''}</span>
-                  </div>
-                  <div class="flex gap-1">
-                    <button class="btn btn-ghost btn-sm cat-edit-btn" data-id="${s.id}">Edit</button>
-                    <button class="btn btn-ghost btn-sm btn-danger cat-delete-btn" data-id="${s.id}">✕</button>
-                  </div>
-                </div>
-              </div>`).join('')}
-            </div>
-          </div>`;
-        }).join('') + `</div>`
-      }
-    </div>
+    <div class="card" style="padding:0">${listHtml}</div>
   </div>`;
 }
 
@@ -805,6 +842,11 @@ function wireCategoriesSection(state) {
       if (chevron) chevron.textContent = closing ? '▸' : '▾';
       if (closing) collapsedGroups.add(id); else collapsedGroups.delete(id);
     });
+  });
+
+  // View toggle
+  el.querySelectorAll('.cat-view-btn').forEach(btn => {
+    btn.addEventListener('click', () => { catViewMode = btn.dataset.view; render(state); });
   });
 
   document.getElementById('settings-add-group-btn')?.addEventListener('click', () => openCategoryModal(state));
