@@ -227,10 +227,12 @@ function renderDisplaySection(state) {
   const myPrefs = state.prefs;
   const myProfile = state.profile;
 
-  const navOrder = prefs.nav_order || ['dashboard','transactions','budgets','analytics','forecast','recurring','accounts','settings'];
+  const allNavKeys = ['dashboard','transactions','budgets','analytics','forecast','recurring','accounts','categories','settings'];
+  const stored = prefs.nav_order || allNavKeys;
+  const navOrder = [...stored, ...allNavKeys.filter(k => !stored.includes(k))];
   const navLabels = { dashboard:'Dashboard', transactions:'Transactions', budgets:'Budgets',
                       analytics:'Analytics', forecast:'Forecast', recurring:'Recurring',
-                      accounts:'Accounts', settings:'Settings' };
+                      accounts:'Accounts', categories:'Categories', settings:'Settings' };
 
   return `<div class="section">
     <div class="section-header"><div class="section-title">Display</div></div>
