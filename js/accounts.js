@@ -38,8 +38,9 @@ export function render(state) {
   const invest   = active.filter(a => effectiveType(a) === 'investment');
   const loans    = active.filter(a => effectiveType(a) === 'loan');
 
-  // Liquid sublines: checking+cash vs credit vs benefits
-  const checkingBal  = sumBal(liquid.filter(a => ['checking','cash'].includes(effectiveType(a))));
+  // Liquid sublines
+  const checkingBal  = sumBal(liquid.filter(a => effectiveType(a) === 'checking'));
+  const cashBal      = sumBal(liquid.filter(a => effectiveType(a) === 'cash'));
   const benefitsBal  = sumBal(liquid.filter(a => effectiveType(a) === 'benefits'));
 
   // Savings/investment sublines: contributed and withdrawn
@@ -60,7 +61,8 @@ export function render(state) {
       <div class="card card-sm">
         <div style="font-size:.65rem;font-weight:600;color:var(--text2);text-transform:uppercase;letter-spacing:.05em;margin-bottom:.15rem">Liquid · Balance</div>
         <div class="text-mono" style="font-size:1rem;font-weight:700">${fmtCurrency(sumBal(liquid), cur)}</div>
-        ${sub('Checking & Cash', checkingBal)}
+        ${checkingBal ? sub('Checking', checkingBal) : ''}
+        ${cashBal ? sub('Cash', cashBal) : ''}
         ${benefitsBal ? sub('Benefits', benefitsBal) : ''}
       </div>
       <div class="card card-sm">
