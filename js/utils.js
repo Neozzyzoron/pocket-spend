@@ -533,6 +533,19 @@ const _FALLBACK_COLORS = [
   '#06b6d4','#f97316','#10b981','#6366f1','#84cc16','#e11d48',
 ];
 
+const RECENT_COLORS_KEY = 'pocket-spend:recent-colors';
+
+function getRecentColors() {
+  try { return JSON.parse(localStorage.getItem(RECENT_COLORS_KEY) || '[]'); } catch { return []; }
+}
+
+function addRecentColor(color) {
+  if (!color || !/^#[0-9a-fA-F]{6}$/.test(color)) return;
+  const list = getRecentColors().filter(c => c !== color);
+  list.unshift(color);
+  localStorage.setItem(RECENT_COLORS_KEY, JSON.stringify(list.slice(0, 5)));
+}
+
 /** Returns HTML for a row of color swatches linked to an <input type="color" id="inputId"> */
 export function colorSwatchesHtml(inputId) {
   const theme = window.App?.state?.settings?.theme || {};
@@ -543,34 +556,53 @@ export function colorSwatchesHtml(inputId) {
   if (theme.accent) add(theme.accent);
   saved.forEach(p => { add(p.accent); add(p.bg); });
   _FALLBACK_COLORS.forEach(add);
-  return `<div class="csw-row" data-for="${escHtml(inputId)}" style="display:flex;flex-wrap:wrap;gap:3px;margin-bottom:.4rem">
-    ${colors.slice(0, 18).map(c =>
-      `<button type="button" class="csw-btn" data-color="${escHtml(c)}" title="${escHtml(c)}"
-        style="width:22px;height:22px;border-radius:3px;background:${c};
-               border:2px solid transparent;cursor:pointer;padding:0;flex-shrink:0"></button>`
-    ).join('')}
+
+  const recent = getRecentColors();
+  const recentHtml = recent.length ? `
+    <div style="font-size:.6rem;color:var(--text2);text-transform:uppercase;letter-spacing:.05em;margin-bottom:2px">Recent</div>
+    <div style="display:flex;flex-wrap:wrap;gap:3px;margin-bottom:.4rem">
+      ${recent.map(c =>
+        `<button type="button" class="csw-btn csw-recent" data-color="${escHtml(c)}" title="${escHtml(c)}"
+          style="width:22px;height:22px;border-radius:3px;background:${c};
+                 border:2px solid transparent;cursor:pointer;padding:0;flex-shrink:0"></button>`
+      ).join('')}
+    </div>` : '';
+
+  return `<div class="csw-wrap" data-for="${escHtml(inputId)}" style="margin-bottom:.4rem">
+    ${recentHtml}
+    <div class="csw-row" style="display:flex;flex-wrap:wrap;gap:3px">
+      ${colors.slice(0, 18).map(c =>
+        `<button type="button" class="csw-btn" data-color="${escHtml(c)}" title="${escHtml(c)}"
+          style="width:22px;height:22px;border-radius:3px;background:${c};
+                 border:2px solid transparent;cursor:pointer;padding:0;flex-shrink:0"></button>`
+      ).join('')}
+    </div>
   </div>`;
 }
 
 /** Wire swatch buttons inside root to their linked color input */
 export function wireColorSwatches(root = document) {
-  root.querySelectorAll('.csw-row').forEach(row => {
-    const input = document.getElementById(row.dataset.for);
+  root.querySelectorAll('.csw-wrap').forEach(wrap => {
+    const input = document.getElementById(wrap.dataset.for);
     if (!input) return;
+    const allBtns = () => wrap.querySelectorAll('.csw-btn');
     const highlight = val => {
-      row.querySelectorAll('.csw-btn').forEach(b =>
+      allBtns().forEach(b =>
         b.style.borderColor = b.dataset.color === val ? 'var(--text)' : 'transparent'
       );
     };
     highlight(input.value);
-    row.querySelectorAll('.csw-btn').forEach(btn => {
+    allBtns().forEach(btn => {
       btn.addEventListener('click', () => {
         input.value = btn.dataset.color;
+        addRecentColor(btn.dataset.color);
         input.dispatchEvent(new Event('input', { bubbles: true }));
         input.dispatchEvent(new Event('change', { bubbles: true }));
         highlight(btn.dataset.color);
       });
     });
+    // Also record when user picks via native color input
+    input.addEventListener('change', () => addRecentColor(input.value));
   });
 }
 
