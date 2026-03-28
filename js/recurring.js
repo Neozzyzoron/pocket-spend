@@ -362,7 +362,13 @@ function openTemplateModal(state, tmpl = null) {
     <div class="form-row">
       <div class="form-group" style="flex:1">
         <label class="form-label">Start date *</label>
-        <input class="form-input" type="text" id="tf2-start" placeholder="${App.state.prefs?.date_format||'DD/MM/YYYY'}" value="${fmtDateInput(tmpl?.start_date || todayISO())}" />
+        <div style="display:flex;align-items:center;gap:.3rem">
+          <input class="form-input" type="text" id="tf2-start" placeholder="${App.state.prefs?.date_format||'DD/MM/YYYY'}" value="${fmtDateInput(tmpl?.start_date || todayISO())}" style="flex:1" />
+          <div style="position:relative;flex-shrink:0">
+            <button type="button" class="btn btn-ghost btn-sm btn-icon" id="tf2-start-btn" title="Pick date">🗓</button>
+            <input type="date" id="tf2-start-picker" style="position:absolute;inset:0;opacity:0;pointer-events:none" tabindex="-1" />
+          </div>
+        </div>
       </div>
       <div class="form-group" style="flex:1">
         <label class="form-label">Type *</label>
@@ -409,6 +415,12 @@ function openTemplateModal(state, tmpl = null) {
       }
     }
     if (monthRow) monthRow.style.display = freq === 'annually' ? '' : 'none';
+  });
+
+  const tf2StartPicker = document.getElementById('tf2-start-picker');
+  document.getElementById('tf2-start-btn')?.addEventListener('click', () => tf2StartPicker?.showPicker?.());
+  tf2StartPicker?.addEventListener('change', e => {
+    document.getElementById('tf2-start').value = fmtDateInput(e.target.value);
   });
 
   document.getElementById('tmpl-form')?.addEventListener('submit', async e => {

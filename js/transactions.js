@@ -489,7 +489,7 @@ function renderInlineEditRow(tx, state, cur, cols = DEFAULT_COLUMNS) {
     : `<select class="form-select" id="ie-acc">${accOpts}</select>`;
 
   const cellMap = {
-    date:            `<td><input class="form-input" type="text" id="ie-date" placeholder="${App.state.prefs?.date_format||'DD/MM/YYYY'}" value="${fmtDateInput(tx.date)}" /></td>`,
+    date:            `<td><div style="display:flex;align-items:center;gap:.25rem"><input class="form-input" type="text" id="ie-date" placeholder="${App.state.prefs?.date_format||'DD/MM/YYYY'}" value="${fmtDateInput(tx.date)}" style="min-width:90px;flex:1" /><div style="position:relative;flex-shrink:0"><button type="button" class="btn btn-ghost btn-sm btn-icon" id="ie-date-btn" title="Pick date">🗓</button><input type="date" id="ie-date-picker" style="position:absolute;inset:0;opacity:0;pointer-events:none" tabindex="-1" /></div></div></td>`,
     description:     `<td><input class="form-input" id="ie-desc" value="${escHtml(tx.description || '')}" placeholder="Description" /></td>`,
     parent_group:    `<td class="text-sm text-muted">${group && cat?.parent_id ? escHtml((group.icon||'')+' '+group.name) : '—'}</td>`,
     category:        `<td>${needsCategory ? `<select class="form-select" id="ie-cat">${catOpts}</select>` : '<span class="text-muted text-sm">—</span>'}</td>`,
@@ -526,6 +526,12 @@ function expandInlineEdit(tx, state, cur) {
 
   const saveBtn = document.getElementById('ie-save');
   const cancelBtn = document.getElementById('ie-cancel');
+
+  const ieDatePicker = document.getElementById('ie-date-picker');
+  document.getElementById('ie-date-btn')?.addEventListener('click', () => ieDatePicker?.showPicker?.());
+  ieDatePicker?.addEventListener('change', e => {
+    document.getElementById('ie-date').value = fmtDateInput(e.target.value);
+  });
 
   cancelBtn?.addEventListener('click', () => { editingId = null; renderTable(state); });
   saveBtn?.addEventListener('click', async () => {
@@ -738,7 +744,13 @@ export function openTxModal(state) {
         </div>
         <div class="form-group" style="flex:1">
           <label class="form-label">Date *</label>
-          <input class="form-input" type="text" id="tf-date" placeholder="${state.prefs?.date_format||'DD/MM/YYYY'}" value="${fmtDateInput(todayISO())}" />
+          <div style="display:flex;align-items:center;gap:.3rem">
+            <input class="form-input" type="text" id="tf-date" placeholder="${state.prefs?.date_format||'DD/MM/YYYY'}" value="${fmtDateInput(todayISO())}" style="flex:1" />
+            <div style="position:relative;flex-shrink:0">
+              <button type="button" class="btn btn-ghost btn-sm btn-icon" id="tf-date-btn" title="Pick date">🗓</button>
+              <input type="date" id="tf-date-picker" style="position:absolute;inset:0;opacity:0;pointer-events:none" tabindex="-1" />
+            </div>
+          </div>
         </div>
       </div>
       <div class="form-row">
@@ -848,6 +860,12 @@ export function openTxModal(state) {
         toAccSel.innerHTML = buildAccountOptions(state.accounts, state.accountOrder, toFilter, null);
       }
     }
+  });
+
+  const tfDatePicker = document.getElementById('tf-date-picker');
+  document.getElementById('tf-date-btn')?.addEventListener('click', () => tfDatePicker?.showPicker?.());
+  tfDatePicker?.addEventListener('change', e => {
+    document.getElementById('tf-date').value = fmtDateInput(e.target.value);
   });
 
   document.getElementById('tx-form')?.addEventListener('submit', async e => {
