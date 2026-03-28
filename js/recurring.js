@@ -14,14 +14,9 @@ const DOW_LABELS = ['Mon','Tue','Wed','Thu','Fri','Sat','Sun'];
 function buildDayOfWeekSelect(selected) {
   return DOW_LABELS.map((d, i) => `<option value="${i}"${Number(selected) === i ? ' selected' : ''}>${d}</option>`).join('');
 }
-function ordinal(n) {
-  const v = n % 100;
-  const s = ['th','st','nd','rd'];
-  return n + (s[(v - 20) % 10] || s[v] || s[0]);
-}
 function buildDayOfMonthSelect(selected) {
   return Array.from({length: 31}, (_, i) => i + 1)
-    .map(d => `<option value="${d}"${Number(selected) === d ? ' selected' : ''}>${ordinal(d)}</option>`).join('');
+    .map(d => `<option value="${d}"${Number(selected) === d ? ' selected' : ''}>${d}</option>`).join('');
 }
 const MONTH_LABELS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
 
