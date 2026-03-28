@@ -458,9 +458,14 @@ async function saveTmpl(state, existing = null) {
   const amount = parseFloat(document.getElementById('tf2-amount')?.value);
   const category_id = document.getElementById('tf2-cat')?.value || null;
   const rawType = document.getElementById('tf2-type')?.value;
-  const type = rawType === 'savings_investment'
-    ? (state.categories.find(c => c.id === category_id)?.nature === 'Investments' ? 'investment' : 'savings')
-    : rawType;
+  const type = (() => {
+    if (rawType !== 'savings_investment') return rawType;
+    const fromAcc = state.accounts.find(a => a.id === account_id);
+    const fromType = effectiveType(fromAcc);
+    if (fromType === 'savings' || fromType === 'investment') return 'withdrawal';
+    const toAcc = state.accounts.find(a => a.id === to_account_id);
+    return effectiveType(toAcc) === 'investment' ? 'investment' : 'savings';
+  })();
   const account_id = document.getElementById('tf2-acc')?.value || null;
   const to_account_id = document.getElementById('tf2-to-acc')?.value || null;
   const frequency = document.getElementById('tf2-freq')?.value;

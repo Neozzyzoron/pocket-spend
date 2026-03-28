@@ -9,15 +9,29 @@ import {
 } from './utils.js';
 
 // Resolve 'savings_investment' to 'savings' or 'investment' based on category nature
-function resolveType(rawType, categoryId, categories) {
+// Resolve 'savings_investment' form type to DB type based on account direction:
+//   liquid → savings/investment account = contribution (savings or investment)
+//   savings/investment account → liquid  = withdrawal
+function resolveType(rawType, fromAccountId, toAccountId, accounts) {
   if (rawType !== 'savings_investment') return rawType;
-  const cat = categories?.find(c => c.id === categoryId);
-  return cat?.nature === 'Investments' ? 'investment' : 'savings';
+  const fromAcc = accounts?.find(a => a.id === fromAccountId);
+  const fromType = effectiveType(fromAcc);
+  if (fromType === 'savings' || fromType === 'investment') return 'withdrawal';
+  const toAcc = accounts?.find(a => a.id === toAccountId);
+  return effectiveType(toAcc) === 'investment' ? 'investment' : 'savings';
 }
 
 // Map a stored tx type back to the form value
 function toFormType(type) {
-  return (type === 'savings' || type === 'investment') ? 'savings_investment' : (type || 'spend');
+  return (type === 'savings' || type === 'investment' || type === 'withdrawal') ? 'savings_investment' : (type || 'spend');
+}
+
+// For S&I: determine to-account filter based on from-account type
+function getSiToFilter(fromAccountId, accounts) {
+  const fromAcc = accounts?.find(a => a.id === fromAccountId);
+  const fromType = effectiveType(fromAcc);
+  if (fromType === 'savings' || fromType === 'investment') return a => isLiquid(a);
+  return a => ['savings', 'investment'].includes(effectiveType(a));
 }
 
 // ── STATE ─────────────────────────────────────────────────────
@@ -517,7 +531,7 @@ function expandInlineEdit(tx, state, cur) {
     const date = document.getElementById('ie-date')?.value;
     const description = document.getElementById('ie-desc')?.value.trim();
     const category_id = document.getElementById('ie-cat')?.value || null;
-    const type = resolveType(document.getElementById('ie-type')?.value, category_id, state.categories);
+    const type = resolveType(document.getElementById('ie-type')?.value, account_id, to_account_id, state.accounts);
     const account_id = document.getElementById('ie-acc')?.value || null;
     const to_account_id = document.getElementById('ie-to-acc')?.value || null;
     const amount = parseFloat(document.getElementById('ie-amt')?.value);
@@ -818,13 +832,20 @@ export function openTxModal(state) {
 
   document.getElementById('tf-type')?.addEventListener('change', () => renderTxAccountFields(state, null));
 
-  // Auto-fill person from account's default owner
+  // Auto-fill person + re-filter S&I to-account when from-account changes
   document.getElementById('tf-account-fields')?.addEventListener('change', e => {
     if (e.target.id !== 'tf-acc') return;
     const acc = state.accounts.find(a => a.id === e.target.value);
     if (acc?.default_user_id) {
       const personEl = document.getElementById('tf-person');
       if (personEl) personEl.value = acc.default_user_id;
+    }
+    if (document.getElementById('tf-type')?.value === 'savings_investment') {
+      const toAccSel = document.getElementById('tf-to-acc');
+      if (toAccSel) {
+        const toFilter = getSiToFilter(e.target.value, state.accounts);
+        toAccSel.innerHTML = buildAccountOptions(state.accounts, state.accountOrder, toFilter, null);
+      }
     }
   });
 
@@ -841,21 +862,6 @@ function renderTxAccountFields(state, tx = null) {
   const { accounts } = state;
   const order = state.accountOrder;
 
-  const needsFrom = ['spend','savings_investment','transfer','withdrawal','debt_payment'].includes(type);
-  const needsTo   = ['savings_investment','transfer','withdrawal','debt_payment'].includes(type);
-
-  const fromFilter = type === 'withdrawal'
-    ? a => ['savings','investment'].includes(effectiveType(a))
-    : a => !needsFrom || isLiquid(a);
-
-  const toFilter = type === 'savings_investment'
-    ? a => ['savings','investment'].includes(effectiveType(a))
-    : type === 'withdrawal'
-    ? a => isLiquid(a)
-    : type === 'debt_payment'
-    ? a => effectiveType(a) === 'loan'
-    : a => true; // transfer
-
   if (type === 'income') {
     container.innerHTML = `<div class="form-group">
       <label class="form-label">Account</label>
@@ -863,11 +869,32 @@ function renderTxAccountFields(state, tx = null) {
     </div>`;
   } else if (type === 'spend' || type === 'adjustment') {
     container.innerHTML = `<div class="form-group">
-      <label class="form-label">${type === 'adjustment' ? 'Account' : 'Account'}</label>
+      <label class="form-label">Account</label>
       <select class="form-select" id="tf-acc">${buildAccountOptions(accounts, order, null, tx?.account_id)}</select>
     </div>`;
+  } else if (type === 'savings_investment') {
+    // From: any non-loan account (liquid or savings/investment — direction determines type)
+    const siFromFilter = a => effectiveType(a) !== 'loan';
+    // Seed the to-filter from the pre-selected from-account (or first available)
+    const seedFromId = tx?.account_id ||
+      [...(order || [])].map(id => accounts.find(a => a.id === id)).find(a => a && !a.is_archived && siFromFilter(a))?.id;
+    const siToFilter = getSiToFilter(seedFromId, accounts);
+    container.innerHTML = `<div class="form-row">
+      <div class="form-group" style="flex:1">
+        <label class="form-label">From account</label>
+        <select class="form-select" id="tf-acc">${buildAccountOptions(accounts, order, siFromFilter, tx?.account_id)}</select>
+      </div>
+      <div class="form-group" style="flex:1">
+        <label class="form-label">To account</label>
+        <select class="form-select" id="tf-to-acc">${buildAccountOptions(accounts, order, siToFilter, tx?.to_account_id)}</select>
+      </div>
+    </div>`;
   } else {
-    // Two accounts
+    // transfer, debt_payment
+    const fromFilter = a => isLiquid(a);
+    const toFilter = type === 'debt_payment'
+      ? a => effectiveType(a) === 'loan'
+      : a => true; // transfer: any
     container.innerHTML = `<div class="form-row">
       <div class="form-group" style="flex:1">
         <label class="form-label">From account</label>
@@ -885,22 +912,24 @@ async function saveTx(state) {
   const errEl = document.getElementById('tf-error');
   errEl.classList.add('hidden');
 
-  const date        = document.getElementById('tf-date')?.value;
-  const description = document.getElementById('tf-desc')?.value.trim();
-  const amount      = parseFloat(document.getElementById('tf-amount')?.value);
-  const category_id = document.getElementById('tf-cat')?.value || null;
-  const type        = resolveType(document.getElementById('tf-type')?.value, category_id, state.categories);
-  const account_id  = document.getElementById('tf-acc')?.value || null;
+  const date          = document.getElementById('tf-date')?.value;
+  const description   = document.getElementById('tf-desc')?.value.trim();
+  const amount        = parseFloat(document.getElementById('tf-amount')?.value);
+  const category_id   = document.getElementById('tf-cat')?.value || null;
+  const rawFormType   = document.getElementById('tf-type')?.value;
+  const account_id    = document.getElementById('tf-acc')?.value || null;
   const to_account_id = document.getElementById('tf-to-acc')?.value || null;
-  const user_id     = document.getElementById('tf-person')?.value || App.state.user.id;
-  const status      = date > todayISO() ? 'pending' : 'confirmed';
-  const notes       = document.getElementById('tf-notes')?.value.trim() || null;
+  const type          = resolveType(rawFormType, account_id, to_account_id, state.accounts);
+  const user_id       = document.getElementById('tf-person')?.value || App.state.user.id;
+  const status        = date > todayISO() ? 'pending' : 'confirmed';
+  const notes         = document.getElementById('tf-notes')?.value.trim() || null;
 
   // Validation
   if (!date) { showErr(errEl, 'Date is required'); return; }
   if (!description) { showErr(errEl, 'Description is required'); return; }
   if (isNaN(amount) || amount <= 0) { showErr(errEl, 'Enter a valid amount'); return; }
-  if (!['transfer','adjustment'].includes(type) && !category_id) {
+  // Category required for income/spend/debt_payment; optional for S&I and transfer/adjustment
+  if (!['transfer','adjustment','savings_investment'].includes(rawFormType) && !category_id) {
     showErr(errEl, 'Category is required for this transaction type'); return;
   }
 
