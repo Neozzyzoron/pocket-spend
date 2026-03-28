@@ -337,6 +337,7 @@ export const NAV_PAGES = {
   forecast:     { label: 'Forecast',     icon: '◈' },
   recurring:    { label: 'Recurring',    icon: '↻' },
   accounts:     { label: 'Accounts',     icon: '▣' },
+  categories:   { label: 'Categories',   icon: '⊞' },
   settings:     { label: 'Settings',     icon: '⚙' },
 };
 

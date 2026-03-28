@@ -15,10 +15,11 @@ import * as Budgets      from './budgets.js';
 import * as Analytics    from './analytics.js';
 import * as Forecast     from './forecast.js';
 import * as Recurring    from './recurring.js';
+import * as Categories   from './categories.js';
 import * as Settings     from './settings.js';
 
 // ── PAGE REGISTRY ────────────────────────────────────────────
-const PAGE_MODULES = { Dashboard, Transactions, Accounts, Budgets, Analytics, Forecast, Recurring, Settings };
+const PAGE_MODULES = { Dashboard, Transactions, Accounts, Budgets, Analytics, Forecast, Recurring, Categories, Settings };
 
 // ── GLOBAL STATE ─────────────────────────────────────────────
 export const state = {

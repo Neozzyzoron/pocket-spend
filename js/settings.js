@@ -846,7 +846,7 @@ function wireCategoriesSection(state) {
   });
 }
 
-function openCategoryModal(state, cat = null, parentGroup = null) {
+export function openCategoryModal(state, cat = null, parentGroup = null) {
   const isEdit = !!cat;
   const isSub = !!parentGroup || !!(cat?.parent_id);
   const parent = parentGroup || (cat?.parent_id ? state.categories.find(c => c.id === cat.parent_id) : null);
