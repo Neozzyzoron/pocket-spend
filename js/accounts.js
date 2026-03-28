@@ -31,15 +31,34 @@ export function render(state) {
   const active = sortByOrder(accounts.filter(a => !a.is_archived), order);
   const archived = sortByOrder(accounts.filter(a => a.is_archived), order);
 
+  // Summary tiles
+  const sumBal = accs => accs.reduce((s, a) => s + calcAccountBalance(a, transactions), 0);
+  const liquid  = active.filter(a => isLiquid(a));
+  const savings = active.filter(a => effectiveType(a) === 'savings');
+  const invest  = active.filter(a => effectiveType(a) === 'investment');
+  const loans   = active.filter(a => effectiveType(a) === 'loan');
+
+  const summaryTiles = `
+    <div class="stat-grid" style="grid-template-columns:repeat(4,1fr);margin-bottom:.5rem">
+      ${[
+        { label: 'Liquid',      val: sumBal(liquid),  neg: false },
+        { label: 'Savings',     val: sumBal(savings), neg: false },
+        { label: 'Investments', val: sumBal(invest),  neg: false },
+        { label: 'Loans',       val: sumBal(loans),   neg: true  },
+      ].map(t => `<div class="card card-sm">
+        <div class="card-title" style="font-size:.7rem">${t.label}</div>
+        <div class="card-value text-mono" style="font-size:1rem;${t.neg && sumBal !== 0 ? 'color:var(--red)' : ''}">${fmtCurrency(t.val, cur)}</div>
+      </div>`).join('')}
+    </div>`;
+
   let mainContent;
   if (accGrouped) {
-    // Group by type, sort within each group by accountOrder
     const groups = [
-      { label: 'Liquid Accounts',   accs: active.filter(a => isLiquid(a)) },
-      { label: 'Savings',           accs: active.filter(a => effectiveType(a) === 'savings') },
-      { label: 'Investments',       accs: active.filter(a => effectiveType(a) === 'investment') },
-      { label: 'Loans & Debt',      accs: active.filter(a => effectiveType(a) === 'loan') },
-      { label: 'Other',             accs: active.filter(a => !isLiquid(a) && !['savings','investment','loan'].includes(effectiveType(a))) },
+      { label: 'Liquid Accounts', accs: liquid },
+      { label: 'Savings',         accs: savings },
+      { label: 'Investments',     accs: invest },
+      { label: 'Loans & Debt',    accs: loans },
+      { label: 'Other',           accs: active.filter(a => !isLiquid(a) && !['savings','investment','loan'].includes(effectiveType(a))) },
     ].filter(g => g.accs.length > 0);
 
     mainContent = groups.map(g => `
@@ -74,6 +93,7 @@ export function render(state) {
       </div>
     </div>
 
+    ${active.length ? summaryTiles : ''}
     ${mainContent}
 
     ${archived.length ? `
@@ -128,12 +148,12 @@ function renderAccountCard(a, state, cur) {
   const balance = calcAccountBalance(a, transactions);
   const isLoan = et === 'loan';
   const isArchived = a.is_archived;
+  const typeLabel = a.type === 'custom' ? (a.custom_type || a.base_type) : et;
 
   const txCount = transactions.filter(tx =>
     isEffective(tx) && (tx.account_id === a.id || tx.to_account_id === a.id)
   ).length;
 
-  // Return metrics for savings/investment
   let returnMetrics = '';
   if (['savings','investment'].includes(et) && !isArchived) {
     const contributed = transactions.filter(tx =>
@@ -141,43 +161,34 @@ function renderAccountCard(a, state, cur) {
     ).reduce((s, tx) => s + Number(tx.amount), 0);
     const growth = balance - (Number(a.opening_balance) || 0) - contributed;
     const growthPct = contributed > 0 ? (growth / contributed * 100) : 0;
-
-    returnMetrics = `<div class="divider"></div>
-      <div class="flex justify-between text-sm text-muted">
+    returnMetrics = `
+      <div class="flex justify-between" style="font-size:.72rem;color:var(--text2);margin-top:.2rem">
         <span>Contributed</span><span class="text-mono">${fmtCurrency(contributed, cur)}</span>
       </div>
-      <div class="flex justify-between text-sm ${growth >= 0 ? 'c-green' : 'c-red'}">
+      <div class="flex justify-between" style="font-size:.72rem;${growth >= 0 ? 'color:var(--green)' : 'color:var(--red)'}">
         <span>Growth</span>
         <span class="text-mono">${growth >= 0 ? '+' : ''}${fmtCurrency(growth, cur)} (${fmtPct(growthPct)})</span>
       </div>`;
   }
 
-  const typeLabel = a.type === 'custom' ? (a.custom_type || a.base_type) : et;
-
-  return `<div class="card" style="border-left:4px solid ${a.color || 'var(--accent)'};${isArchived ? 'opacity:.55' : ''}">
-    <div class="card-header">
-      <div>
-        <div class="card-title">${escHtml(a.name)}</div>
-        <div class="text-sm text-muted">${escHtml(typeLabel)}</div>
+  return `<div class="card" style="border-left:3px solid ${a.color || 'var(--accent)'};padding:.6rem .75rem;${isArchived ? 'opacity:.55' : ''}">
+    <div class="flex justify-between items-start" style="gap:.5rem;margin-bottom:.2rem">
+      <div style="min-width:0">
+        <div style="font-weight:600;font-size:.85rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${escHtml(a.name)}</div>
+        <div style="font-size:.7rem;color:var(--text2)">${escHtml(typeLabel)}${isLoan && balance <= 0 ? ' · <span style="color:var(--green)">Paid off ✓</span>' : ''}</div>
       </div>
-      ${isLoan && balance <= 0 ? '<span class="badge badge-green">Paid off ✓</span>' : ''}
+      <div class="text-mono" style="font-size:.95rem;font-weight:600;white-space:nowrap;${isLoan ? 'color:var(--red)' : balance < 0 ? 'color:var(--red)' : ''}">${fmtCurrency(balance, cur)}</div>
     </div>
-    <div class="card-value text-mono ${isLoan ? 'c-red' : balance < 0 ? 'c-red' : ''}">
-      ${fmtCurrency(balance, cur)}
-    </div>
-    <div class="card-meta text-muted text-sm">
-      ${txCount} tx · Opening: ${fmtCurrency(a.opening_balance || 0, cur)}
-      ${a.type === 'custom' && a.base_type ? ` · ${a.base_type}` : ''}
-    </div>
+    <div style="font-size:.68rem;color:var(--text2);margin-bottom:.35rem">${txCount} tx · Opening: ${fmtCurrency(a.opening_balance || 0, cur)}</div>
     ${returnMetrics}
-    <div class="divider"></div>
-    <div class="flex gap-1" style="flex-wrap:wrap">
-      <button class="btn btn-ghost btn-sm acc-edit-btn" data-id="${a.id}">Edit</button>
-      <button class="btn btn-ghost btn-sm acc-adjust-btn" data-id="${a.id}">Adjust</button>
-      <button class="btn btn-ghost btn-sm acc-archive-btn" data-id="${a.id}">${isArchived ? 'Unarchive' : 'Archive'}</button>
-      <button class="btn btn-ghost btn-sm btn-danger acc-delete-btn" data-id="${a.id}">Delete</button>
+    <div class="flex gap-1" style="margin-top:.4rem;flex-wrap:wrap">
+      <button class="btn btn-ghost btn-sm acc-edit-btn" data-id="${a.id}" style="font-size:.7rem;padding:.15rem .45rem">Edit</button>
+      <button class="btn btn-ghost btn-sm acc-adjust-btn" data-id="${a.id}" style="font-size:.7rem;padding:.15rem .45rem">Adjust</button>
+      <button class="btn btn-ghost btn-sm acc-archive-btn" data-id="${a.id}" style="font-size:.7rem;padding:.15rem .45rem">${isArchived ? 'Unarchive' : 'Archive'}</button>
+      <button class="btn btn-ghost btn-sm btn-danger acc-delete-btn" data-id="${a.id}" style="font-size:.7rem;padding:.15rem .45rem">Delete</button>
     </div>
   </div>`;
+}
 }
 
 // ── ADD / EDIT MODAL ──────────────────────────────────────────
