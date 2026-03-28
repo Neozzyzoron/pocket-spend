@@ -70,7 +70,7 @@ export function render(state) {
       <div class="section-header">
         <div class="section-title">Breakdown</div>
         <div class="toggle-group">
-          <button class="toggle-group-btn breakdown-tab active" data-view="type">Tx Type</button>
+          <button class="toggle-group-btn breakdown-tab active" data-view="summary">Summary</button>
           <button class="toggle-group-btn breakdown-tab" data-view="nature">Nature</button>
           <button class="toggle-group-btn breakdown-tab" data-view="group">Group</button>
           <button class="toggle-group-btn breakdown-tab" data-view="sub">Subcategory</button>
@@ -98,7 +98,7 @@ export function render(state) {
   );
 
   if (sections.breakdown) {
-    renderBreakdownRows(state, period, cur, 'type');
+    renderBreakdownRows(state, period, cur, 'summary');
     el.querySelectorAll('.breakdown-tab').forEach(tab => {
       tab.addEventListener('click', () => {
         el.querySelectorAll('.breakdown-tab').forEach(t => t.classList.remove('active'));
@@ -332,12 +332,22 @@ function rowColor(row, i) {
 
 // Returns [name, amount, color|null] tuples
 function buildRows(txList, view, categories) {
-  if (view === 'type') {
+  if (view === 'summary') {
+    const BUCKET = {
+      income:       ['Income', CLR.income ],
+      spend:        ['Spend',  CLR.spend  ],
+      debt_payment: ['Debt',   CLR.debt   ],
+      savings:      ['S&I',    CLR.savings],
+      investment:   ['S&I',    CLR.invest ],
+      withdrawal:   ['S&I',    CLR.savings],
+    };
     const map = {}, colorMap = {};
     for (const tx of txList) {
-      const key = TX_TYPE_LABELS[tx.type] || tx.type;
-      map[key] = (map[key] || 0) + Number(tx.amount);
-      if (!colorMap[key]) colorMap[key] = NATURE_COLORS[key] || null;
+      const b = BUCKET[tx.type];
+      if (!b) continue; // skip transfer, adjustment
+      const [label, color] = b;
+      map[label] = (map[label] || 0) + Number(tx.amount);
+      if (!colorMap[label]) colorMap[label] = color;
     }
     return Object.entries(map).sort((a,b) => b[1]-a[1]).map(([n,v]) => [n, v, colorMap[n]]);
   }

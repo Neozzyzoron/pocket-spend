@@ -24,7 +24,7 @@ function toFormType(type) {
 let filters = { search: '', status: 'all', type: '', category: '', account: '', person: '', month: '' };
 let editingId = null;
 let selectedIds = new Set();
-let viewMode = 'flat'; // flat | nature | group | sub | tx_type
+let viewMode = 'flat'; // flat | nature | group | sub | summary
 
 const ALL_COLUMNS = [
   { id: 'date',          label: 'Date' },
@@ -77,7 +77,7 @@ export function render(state) {
     <div class="section" style="padding-bottom:0;padding-top:.5rem">
       <div class="toggle-group">
         <button class="toggle-group-btn tx-view-btn${viewMode==='flat'?' active':''}" data-view="flat">Flat</button>
-        <button class="toggle-group-btn tx-view-btn${viewMode==='tx_type'?' active':''}" data-view="tx_type">Tx Type</button>
+        <button class="toggle-group-btn tx-view-btn${viewMode==='summary'?' active':''}" data-view="summary">Summary</button>
         <button class="toggle-group-btn tx-view-btn${viewMode==='nature'?' active':''}" data-view="nature">Nature</button>
         <button class="toggle-group-btn tx-view-btn${viewMode==='group'?' active':''}" data-view="group">Group</button>
         <button class="toggle-group-btn tx-view-btn${viewMode==='sub'?' active':''}" data-view="sub">Subcategory</button>
@@ -396,8 +396,8 @@ function renderGroupedRows(filtered, state, cur, cols, runningBalMap, colSpan) {
       return g ? (g.icon || '') + ' ' + g.name : 'Uncategorised';
     }
     if (viewMode === 'sub') return cat ? (cat.icon || '') + ' ' + cat.name : 'Uncategorised';
-    if (viewMode === 'tx_type') {
-      if (tx.type === 'savings' || tx.type === 'investment') return 'Savings & Investments';
+    if (viewMode === 'summary') {
+      if (tx.type === 'savings' || tx.type === 'investment' || tx.type === 'withdrawal') return 'Savings & Investments';
       return TX_TYPE_LABELS[tx.type] || tx.type;
     }
     return '';

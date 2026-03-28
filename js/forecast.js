@@ -20,7 +20,7 @@ export function render(state) {
   const forecastN = parseInt(el.dataset.forecastN || '3');
   const personFilter = el.dataset.personFilter || '';
   const avgWindow = state.prefs.forecast_avg_window || 3;
-  const viewMode = el.dataset.viewMode || 'type';
+  const viewMode = el.dataset.viewMode || 'summary';
   const filterNatures   = el.dataset.filterNatures   ? el.dataset.filterNatures.split(',').filter(Boolean)   : [];
   const filterGroups    = el.dataset.filterGroups    ? el.dataset.filterGroups.split(',').filter(Boolean)    : [];
   const filterSubcats   = el.dataset.filterSubcats   ? el.dataset.filterSubcats.split(',').filter(Boolean)   : [];
@@ -76,7 +76,7 @@ export function render(state) {
       <div class="flex gap-2 items-center" style="flex-wrap:wrap;margin-top:.625rem;padding-top:.625rem;border-top:1px solid var(--border)">
         <span class="text-sm text-muted">View:</span>
         <div class="toggle-group">
-          ${[['type','Tx Type'],['nature','Nature'],['group','Group'],['subcategory','Subcategory']].map(([v,l]) =>
+          ${[['summary','Summary'],['nature','Nature'],['group','Group'],['subcategory','Subcategory']].map(([v,l]) =>
             `<button class="toggle-group-btn fc-view-btn${viewMode===v?' active':''}" data-view="${v}">${l}</button>`
           ).join('')}
         </div>
@@ -934,7 +934,14 @@ function renderCategoryBreakdown(state, periods, currentPeriod, forecastN, cur, 
 
 // Returns a key for grouping a category_id by the current viewMode
 function groupKey(categoryId, categories, viewMode, txType) {
-  if (viewMode === 'type') return txType || '__none__';
+  if (viewMode === 'summary') {
+    if (txType === 'income')                                        return 'Income';
+    if (txType === 'spend')                                         return 'Spend';
+    if (txType === 'debt_payment')                                  return 'Debt';
+    if (txType === 'savings' || txType === 'investment')            return 'S&I';
+    if (txType === 'withdrawal')                                    return 'S&I';
+    return '__none__'; // transfer, adjustment
+  }
   if (!categoryId) return '__none__';
   const cat = categories.find(c => c.id === categoryId);
   if (!cat) return '__none__';
@@ -947,7 +954,7 @@ function groupKey(categoryId, categories, viewMode, txType) {
 // Returns display label for a group key
 function groupLabel(key, categories, viewMode) {
   if (key === '__none__') return 'Uncategorised';
-  if (viewMode === 'type')   return TX_TYPE_LABELS[key] || key;
+  if (viewMode === 'summary') return key; // key is already 'Income'/'Spend'/'S&I'/'Debt'
   if (viewMode === 'nature') return key;
   const cat = categories.find(c => c.id === key);
   if (!cat) return 'Uncategorised';

@@ -18,7 +18,7 @@ export function render(state) {
   const periodN = parseInt(el.dataset.periodN || '6');
   const accountFilter = el.dataset.accountFilter || '';
   const personFilter = el.dataset.personFilter || '';
-  const breakdownView = el.dataset.breakdownView || 'type';
+  const breakdownView = el.dataset.breakdownView || 'summary';
 
   const pa = state.profiles[0]?.preferences?.salary_day;
   const pb = state.profiles[1]?.preferences?.salary_day;
@@ -272,12 +272,103 @@ function drawPersonChart(allTx, periods, profiles, cur) {
 }
 
 // ── BREAKDOWN TABLE ───────────────────────────────────────────
-function renderBreakdownTable(allTx, periods, categories, cur, viewMode = 'type') {
+function renderBreakdownTable(allTx, periods, categories, cur, viewMode = 'summary') {
+  const views = [['summary','Summary'],['nature','Nature'],['group','Group'],['sub','Subcategory']];
+
+  // For summary view, build 4 semantic buckets with S&I net + sublines
+  if (viewMode === 'summary') {
+    const buckets = { Income: null, Spend: null, 'S&I': null, Debt: null };
+    const siContrib = { periodAmts: periods.map(() => 0), total: 0 };
+    const siWithdraw = { periodAmts: periods.map(() => 0), total: 0 };
+
+    const txSubset = allTx.filter(tx => isEffective(tx) && !['transfer','adjustment'].includes(tx.type));
+    for (const tx of txSubset) {
+      let bucket;
+      if (tx.type === 'income')                                          bucket = 'Income';
+      else if (tx.type === 'spend')                                      bucket = 'Spend';
+      else if (tx.type === 'debt_payment')                               bucket = 'Debt';
+      else if (tx.type === 'savings' || tx.type === 'investment')        bucket = '__contrib__';
+      else if (tx.type === 'withdrawal')                                 bucket = '__withdraw__';
+      else continue;
+
+      if (bucket === '__contrib__') {
+        const i = periods.findIndex(p => parseISO(tx.date) >= p.start && parseISO(tx.date) <= p.end);
+        if (i !== -1) siContrib.periodAmts[i] += Number(tx.amount);
+        siContrib.total += Number(tx.amount);
+      } else if (bucket === '__withdraw__') {
+        const i = periods.findIndex(p => parseISO(tx.date) >= p.start && parseISO(tx.date) <= p.end);
+        if (i !== -1) siWithdraw.periodAmts[i] += Number(tx.amount);
+        siWithdraw.total += Number(tx.amount);
+      } else {
+        if (!buckets[bucket]) buckets[bucket] = { periodAmts: periods.map(() => 0), total: 0 };
+        const i = periods.findIndex(p => parseISO(tx.date) >= p.start && parseISO(tx.date) <= p.end);
+        if (i !== -1) buckets[bucket].periodAmts[i] += Number(tx.amount);
+        buckets[bucket].total += Number(tx.amount);
+      }
+    }
+
+    if (siContrib.total > 0 || siWithdraw.total > 0) {
+      buckets['S&I'] = {
+        periodAmts: periods.map((_, i) => siContrib.periodAmts[i] - siWithdraw.periodAmts[i]),
+        total: siContrib.total - siWithdraw.total,
+        sublines: [
+          ...(siContrib.total  > 0 ? [{ name: '↳ Contributions', periodAmts: siContrib.periodAmts,  total: siContrib.total  }] : []),
+          ...(siWithdraw.total > 0 ? [{ name: '↳ Withdrawals',    periodAmts: siWithdraw.periodAmts, total: siWithdraw.total, neg: true }] : []),
+        ],
+      };
+    }
+
+    const rows = Object.entries(buckets)
+      .filter(([, v]) => v !== null)
+      .map(([name, v]) => ({ name, ...v }));
+
+    if (!rows.length) return '';
+
+    const fmtAmt = (a, neg = false) => {
+      if (a === 0) return '—';
+      const formatted = fmtCurrency(Math.abs(a), cur);
+      return neg ? `<span class="c-red">${formatted}</span>` : (a < 0 ? `<span class="c-red">${fmtCurrency(a, cur)}</span>` : formatted);
+    };
+
+    return `<div class="section">
+      <div class="section-header">
+        <div class="section-title">Breakdown</div>
+        <div class="toggle-group">
+          ${views.map(([v,l]) => `<button class="toggle-group-btn analytics-breakdown-btn${viewMode===v?' active':''}" data-view="${v}">${l}</button>`).join('')}
+        </div>
+      </div>
+      <div class="card" style="padding:0">
+        <div class="table-wrap">
+          <table class="table">
+            <thead><tr>
+              <th>Summary</th>
+              ${periods.map(p => `<th class="amount-col">${escHtml(p.label)}</th>`).join('')}
+              <th class="amount-col">Total</th>
+            </tr></thead>
+            <tbody>
+              ${rows.map(r => `
+                <tr>
+                  <td class="text-sm" style="font-weight:600">${escHtml(r.name)}</td>
+                  ${r.periodAmts.map(a => `<td class="amount-col text-mono text-sm">${fmtAmt(a)}</td>`).join('')}
+                  <td class="amount-col text-mono" style="font-weight:600">${fmtAmt(r.total)}</td>
+                </tr>
+                ${(r.sublines || []).map(sl => `<tr style="opacity:.75">
+                  <td class="text-sm text-muted" style="padding-left:1.5rem">${escHtml(sl.name)}</td>
+                  ${sl.periodAmts.map(a => `<td class="amount-col text-mono text-sm">${a > 0 ? fmtCurrency(a, cur) : '—'}</td>`).join('')}
+                  <td class="amount-col text-mono text-sm${sl.neg ? ' c-red' : ''}">${fmtCurrency(sl.total, cur)}</td>
+                </tr>`).join('')}
+              `).join('')}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>`;
+  }
+
+  // Non-summary views: filter to spend + debt_payment only
   const spendTx = allTx.filter(tx => isEffective(tx) && (tx.type === 'spend' || tx.type === 'debt_payment'));
 
-  // Derive row key from viewMode
   function rowKey(tx) {
-    if (viewMode === 'type') return TX_TYPE_LABELS[tx.type] || tx.type;
     const cat = categories.find(c => c.id === tx.category_id);
     if (!cat) return 'Uncategorised';
     if (viewMode === 'nature') return cat.nature || 'Uncategorised';
@@ -300,11 +391,9 @@ function renderBreakdownTable(allTx, periods, categories, cur, viewMode = 'type'
   const rows = Object.values(byKey).sort((a,b) => b.total - a.total);
   if (!rows.length) return '';
 
-  const views = [['type','Tx Type'],['nature','Nature'],['group','Group'],['sub','Subcategory']];
-
   return `<div class="section">
     <div class="section-header">
-      <div class="section-title">Spending Breakdown</div>
+      <div class="section-title">Breakdown</div>
       <div class="toggle-group">
         ${views.map(([v,l]) => `<button class="toggle-group-btn analytics-breakdown-btn${viewMode===v?' active':''}" data-view="${v}">${l}</button>`).join('')}
       </div>
