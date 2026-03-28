@@ -938,7 +938,7 @@ export function openCategoryModal(state, cat = null, parentGroup = null) {
       App.toast('Category created', 'success');
     }
     App.closeModal();
-    render(state);
+    App.refreshCurrentPage();
   });
 }
 
