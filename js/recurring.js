@@ -58,7 +58,7 @@ export function render(state) {
       </div>
       <div class="card card-sm">
         <div class="card-title text-muted text-sm">Recurring Spend</div>
-        <div class="card-value text-mono">${fmtCurrency(expected.spend + expected.debt, cur)}</div>
+        <div class="card-value text-mono c-red">${fmtCurrency(expected.spend + expected.debt, cur)}</div>
         <div style="margin-top:.35rem;display:flex;flex-direction:column;gap:.15rem">
           <div class="text-sm" style="display:flex;justify-content:space-between;gap:.5rem">
             <span class="text-muted">Direct spend</span>
@@ -72,7 +72,7 @@ export function render(state) {
       </div>
       <div class="card card-sm">
         <div class="card-title text-muted text-sm">Recurring Savings &amp; Investments</div>
-        <div class="card-value text-mono">${fmtCurrency(expected.si, cur)}</div>
+        <div class="card-value text-mono c-blue">${fmtCurrency(expected.si, cur)}</div>
       </div>
       <div class="card card-sm">
         <div class="card-title text-muted text-sm">Due not yet logged</div>
