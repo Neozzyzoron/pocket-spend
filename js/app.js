@@ -5,7 +5,7 @@
 import {
   supabase, mergePrefs, NAV_PAGES, applyTheme, calcCycle,
   generateInviteCode, fmtDate, todayISO, toISO, parseISO,
-  todayDate, clampDay, lastDayOfMonth, escHtml,
+  todayDate, clampDay, lastDayOfMonth, escHtml, setDateFormat,
 } from './utils.js';
 
 import * as Dashboard    from './dashboard.js';
@@ -280,6 +280,7 @@ async function loadAllData() {
   if (myProfile) {
     state.profile = myProfile;
     state.prefs = mergePrefs(myProfile.preferences || {});
+    setDateFormat(state.prefs.date_format);
   }
 }
 

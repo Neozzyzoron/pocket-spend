@@ -6,6 +6,7 @@ import {
   fmtCurrency, fmtDate, fmtRelDate, escHtml, parseISO, todayISO,
   isEffective, effectiveType, isLiquid, buildCategoryOptions,
   buildAccountOptions, TX_TYPE_LABELS, TX_FORM_TYPES, TX_FILTER_TYPES, typeBadgeClass, getCat,
+  fmtDateInput, parseDateInput,
 } from './utils.js';
 
 // Resolve 'savings_investment' to 'savings' or 'investment' based on category nature
@@ -488,7 +489,7 @@ function renderInlineEditRow(tx, state, cur, cols = DEFAULT_COLUMNS) {
     : `<select class="form-select" id="ie-acc">${accOpts}</select>`;
 
   const cellMap = {
-    date:            `<td><input class="form-input" type="date" id="ie-date" value="${tx.date}" /></td>`,
+    date:            `<td><input class="form-input" type="text" id="ie-date" placeholder="${App.state.prefs?.date_format||'DD/MM/YYYY'}" value="${fmtDateInput(tx.date)}" /></td>`,
     description:     `<td><input class="form-input" id="ie-desc" value="${escHtml(tx.description || '')}" placeholder="Description" /></td>`,
     parent_group:    `<td class="text-sm text-muted">${group && cat?.parent_id ? escHtml((group.icon||'')+' '+group.name) : '—'}</td>`,
     category:        `<td>${needsCategory ? `<select class="form-select" id="ie-cat">${catOpts}</select>` : '<span class="text-muted text-sm">—</span>'}</td>`,
@@ -528,7 +529,7 @@ function expandInlineEdit(tx, state, cur) {
 
   cancelBtn?.addEventListener('click', () => { editingId = null; renderTable(state); });
   saveBtn?.addEventListener('click', async () => {
-    const date = document.getElementById('ie-date')?.value;
+    const date = parseDateInput(document.getElementById('ie-date')?.value);
     const description = document.getElementById('ie-desc')?.value.trim();
     const category_id = document.getElementById('ie-cat')?.value || null;
     const type = resolveType(document.getElementById('ie-type')?.value, account_id, to_account_id, state.accounts);
@@ -737,7 +738,7 @@ export function openTxModal(state) {
         </div>
         <div class="form-group" style="flex:1">
           <label class="form-label">Date *</label>
-          <input class="form-input" type="date" id="tf-date" value="${todayISO()}" />
+          <input class="form-input" type="text" id="tf-date" placeholder="${state.prefs?.date_format||'DD/MM/YYYY'}" value="${fmtDateInput(todayISO())}" />
         </div>
       </div>
       <div class="form-row">
@@ -912,7 +913,7 @@ async function saveTx(state) {
   const errEl = document.getElementById('tf-error');
   errEl.classList.add('hidden');
 
-  const date          = document.getElementById('tf-date')?.value;
+  const date          = parseDateInput(document.getElementById('tf-date')?.value);
   const description   = document.getElementById('tf-desc')?.value.trim();
   const amount        = parseFloat(document.getElementById('tf-amount')?.value);
   const category_id   = document.getElementById('tf-cat')?.value || null;
