@@ -158,7 +158,10 @@ function closeSidebar() {
 
 // ── RENDER SIDEBAR NAV ────────────────────────────────────────
 function renderSidebarNav() {
-  const order = state.prefs.nav_order || Object.keys(NAV_PAGES);
+  const allKeys = Object.keys(NAV_PAGES);
+  const stored = state.prefs.nav_order || allKeys;
+  // Append any new pages not yet in stored order
+  const order = [...stored, ...allKeys.filter(k => !stored.includes(k))];
   const nav = document.getElementById('sidebar-nav');
   nav.innerHTML = order.map(page => {
     const info = NAV_PAGES[page];
