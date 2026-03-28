@@ -189,7 +189,6 @@ function renderAccountCard(a, state, cur) {
     </div>
   </div>`;
 }
-}
 
 // ── ADD / EDIT MODAL ──────────────────────────────────────────
 function openAccountModal(state, acc = null) {
