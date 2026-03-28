@@ -687,12 +687,6 @@ export function openTxModal(state, tx = null) {
 
   const html = `
     <form id="tx-form" autocomplete="off">
-      <div class="form-group" style="margin-bottom:.75rem">
-        <label class="form-label">Type *</label>
-        <select class="form-select" id="tf-type">
-          ${TX_FORM_TYPES.map(([k,v]) => `<option value="${k}"${defaultType===k?' selected':''}>${v}</option>`).join('')}
-        </select>
-      </div>
       ${!isEdit ? `<div style="margin-bottom:1rem" id="qp-section">
         <div class="flex items-center justify-between" style="margin-bottom:.4rem">
           <span class="text-sm text-muted">Quick add</span>
@@ -737,22 +731,28 @@ export function openTxModal(state, tx = null) {
           <input class="form-input" type="date" id="tf-date" value="${tx?.date || todayISO()}" />
         </div>
       </div>
-      <div id="tf-account-fields"></div>
       <div class="form-row">
+        <div class="form-group" style="flex:1">
+          <label class="form-label">Type *</label>
+          <select class="form-select" id="tf-type">
+            ${TX_FORM_TYPES.map(([k,v]) => `<option value="${k}"${defaultType===k?' selected':''}>${v}</option>`).join('')}
+          </select>
+        </div>
         <div class="form-group" style="flex:1">
           <label class="form-label">Person</label>
           <select class="form-select" id="tf-person">
             ${profiles.map(p => `<option value="${p.id}"${(tx?.user_id || App.state.user.id) === p.id ? ' selected' : ''}>${escHtml(p.display_name)}</option>`).join('')}
           </select>
         </div>
-        ${isEdit ? `<div class="form-group" style="flex:1">
-          <label class="form-label">Status</label>
-          <select class="form-select" id="tf-status">
-            <option value="confirmed"${tx?.status !== 'pending' ? ' selected' : ''}>Confirmed</option>
-            <option value="pending"${tx?.status === 'pending' ? ' selected' : ''}>Pending</option>
-          </select>
-        </div>` : ''}
       </div>
+      <div id="tf-account-fields"></div>
+      ${isEdit ? `<div class="form-group">
+        <label class="form-label">Status</label>
+        <select class="form-select" id="tf-status">
+          <option value="confirmed"${tx?.status !== 'pending' ? ' selected' : ''}>Confirmed</option>
+          <option value="pending"${tx?.status === 'pending' ? ' selected' : ''}>Pending</option>
+        </select>
+      </div>` : ''}
       <div class="form-group">
         <label class="form-label">Notes</label>
         <textarea class="form-textarea" id="tf-notes" rows="2" placeholder="Optional notes">${escHtml(tx?.notes || '')}</textarea>
