@@ -45,22 +45,33 @@ export function render(state) {
       </div>
     </div>
 
+    <!-- Period label -->
+    <div style="margin-bottom:.6rem">
+      <span class="text-sm text-muted">${period.label}</span>
+    </div>
+
     <!-- Summary cards -->
-    <div class="stat-grid" style="grid-template-columns:repeat(auto-fill,minmax(160px,1fr))">
+    <div class="stat-grid" style="grid-template-columns:repeat(auto-fill,minmax(170px,1fr))">
       <div class="card card-sm">
-        <div class="card-title text-muted text-sm">Expected income</div>
+        <div class="card-title text-muted text-sm">Recurring Income</div>
         <div class="card-value text-mono c-green">${fmtCurrency(expected.income, cur)}</div>
       </div>
       <div class="card card-sm">
-        <div class="card-title text-muted text-sm">Expected spend</div>
-        <div class="card-value text-mono">${fmtCurrency(expected.spend, cur)}</div>
+        <div class="card-title text-muted text-sm">Recurring Spend</div>
+        <div class="card-value text-mono">${fmtCurrency(expected.spend + expected.debt, cur)}</div>
+        <div style="margin-top:.35rem;display:flex;flex-direction:column;gap:.15rem">
+          <div class="text-sm" style="display:flex;justify-content:space-between;gap:.5rem">
+            <span class="text-muted">Direct spend</span>
+            <span class="text-mono">${fmtCurrency(expected.spend, cur)}</span>
+          </div>
+          <div class="text-sm" style="display:flex;justify-content:space-between;gap:.5rem">
+            <span class="text-muted">Debt payments</span>
+            <span class="text-mono">${fmtCurrency(expected.debt, cur)}</span>
+          </div>
+        </div>
       </div>
       <div class="card card-sm">
-        <div class="card-title text-muted text-sm">Expected debt payments</div>
-        <div class="card-value text-mono">${fmtCurrency(expected.debt, cur)}</div>
-      </div>
-      <div class="card card-sm">
-        <div class="card-title text-muted text-sm">Expected S&amp;I</div>
+        <div class="card-title text-muted text-sm">Recurring Savings &amp; Investments</div>
         <div class="card-value text-mono">${fmtCurrency(expected.si, cur)}</div>
       </div>
       <div class="card card-sm">
