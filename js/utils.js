@@ -310,6 +310,7 @@ export const DEFAULT_PREFS = {
   cycle_mode: 'month',
   nav_order: ['dashboard', 'transactions', 'budgets', 'analytics', 'forecast', 'recurring', 'accounts', 'settings'],
   forecast_avg_window: 3,
+  date_format: 'DD/MM/YYYY',
 };
 
 export function mergePrefs(stored) {
@@ -326,6 +327,32 @@ export function mergePrefs(stored) {
       cardOrder: stored.dash?.cardOrder || base.dash.cardOrder,
     },
   };
+}
+
+let _dateFmt = 'DD/MM/YYYY';
+
+export function setDateFormat(fmt) {
+  _dateFmt = fmt || 'DD/MM/YYYY';
+}
+
+export function fmtDateInput(isoStr) {
+  if (!isoStr) return '';
+  const [y, m, d] = isoStr.split('-');
+  if (_dateFmt === 'MM/DD/YYYY') return `${m}/${d}/${y}`;
+  if (_dateFmt === 'YYYY-MM-DD') return isoStr;
+  return `${d}/${m}/${y}`;
+}
+
+export function parseDateInput(str) {
+  if (!str) return '';
+  str = str.trim();
+  if (_dateFmt === 'MM/DD/YYYY') {
+    const [m, d, y] = str.split('/');
+    return y && m && d ? `${y}-${m.padStart(2,'0')}-${d.padStart(2,'0')}` : str;
+  }
+  if (_dateFmt === 'YYYY-MM-DD') return str;
+  const [d, m, y] = str.split('/');
+  return y && m && d ? `${y}-${m.padStart(2,'0')}-${d.padStart(2,'0')}` : str;
 }
 
 /** Nav page definitions */

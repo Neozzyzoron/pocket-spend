@@ -6,7 +6,7 @@
 import {
   fmtCurrency, escHtml, effectiveType, calcAccountBalance,
   buildCategoryTree, isEffective, colorSwatchesHtml, wireColorSwatches,
-  wireDragReorder, TX_FORM_TYPES,
+  wireDragReorder, TX_FORM_TYPES, setDateFormat,
 } from './utils.js';
 import { openBudgetModal } from './budgets.js';
 
@@ -252,6 +252,16 @@ function renderDisplaySection(state) {
 
       <div class="divider" style="margin:1.25rem 0"></div>
       <div class="form-group">
+        <label class="form-label">Date format (forms)</label>
+        <select class="form-select" id="disp-date-fmt" style="max-width:200px">
+          <option value="DD/MM/YYYY"${myPrefs.date_format === 'DD/MM/YYYY' ? ' selected' : ''}>DD/MM/YYYY</option>
+          <option value="MM/DD/YYYY"${myPrefs.date_format === 'MM/DD/YYYY' ? ' selected' : ''}>MM/DD/YYYY</option>
+          <option value="YYYY-MM-DD"${myPrefs.date_format === 'YYYY-MM-DD' ? ' selected' : ''}>YYYY-MM-DD</option>
+        </select>
+      </div>
+
+      <div class="divider" style="margin:1.25rem 0"></div>
+      <div class="form-group">
         <label class="form-label">Navigation order</label>
         <div class="form-hint">Drag to reorder — saved automatically</div>
         <div id="nav-order-list" style="margin-top:.5rem;display:flex;flex-direction:column;gap:2px">
@@ -307,6 +317,18 @@ function wireDisplay(state) {
 
     App.renderCycleToggle();
     App.toast('Salary days saved', 'success');
+  });
+
+  document.getElementById('disp-date-fmt')?.addEventListener('change', async (e) => {
+    const fmt = e.target.value;
+    const newPrefs = { ...state.prefs, date_format: fmt };
+    const { error } = await App.supabase.from('profiles')
+      .update({ preferences: newPrefs }).eq('id', state.user.id);
+    if (!error) {
+      state.prefs.date_format = fmt;
+      setDateFormat(fmt);
+      App.toast('Date format saved', 'success');
+    }
   });
 }
 

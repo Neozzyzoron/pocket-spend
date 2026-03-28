@@ -6,7 +6,7 @@
 import {
   fmtCurrency, fmtDate, escHtml, parseISO, todayISO, toISO,
   buildCategoryOptions, buildAccountOptions, TX_TYPE_LABELS, TX_FORM_TYPES,
-  effectiveType, isLiquid,
+  effectiveType, isLiquid, fmtDateInput, parseDateInput,
 } from './utils.js';
 
 const DOW_LABELS = ['Mon','Tue','Wed','Thu','Fri','Sat','Sun'];
@@ -362,7 +362,7 @@ function openTemplateModal(state, tmpl = null) {
     <div class="form-row">
       <div class="form-group" style="flex:1">
         <label class="form-label">Start date *</label>
-        <input class="form-input" type="date" id="tf2-start" value="${tmpl?.start_date || todayISO()}" />
+        <input class="form-input" type="text" id="tf2-start" placeholder="${App.state.prefs?.date_format||'DD/MM/YYYY'}" value="${fmtDateInput(tmpl?.start_date || todayISO())}" />
       </div>
       <div class="form-group" style="flex:1">
         <label class="form-label">Type *</label>
@@ -483,7 +483,7 @@ async function saveTmpl(state, existing = null) {
   const frequency = document.getElementById('tf2-freq')?.value;
   const dayVal = parseInt(document.getElementById('tf2-day')?.value, 10);
   const month_of_year = parseInt(document.getElementById('tf2-month')?.value) || null;
-  const start_date = document.getElementById('tf2-start')?.value;
+  const start_date = parseDateInput(document.getElementById('tf2-start')?.value);
   const notes = document.getElementById('tf2-notes')?.value.trim() || null;
 
   if (!description) { errEl.textContent = 'Description is required'; errEl.classList.remove('hidden'); return; }
