@@ -8,6 +8,7 @@ import {
   buildCategoryTree, isEffective, colorSwatchesHtml, wireColorSwatches,
   wireDragReorder, TX_FORM_TYPES,
 } from './utils.js';
+import { openBudgetModal } from './budgets.js';
 
 // Persists collapse state within the session
 const collapsedGroups = new Set();
@@ -166,7 +167,7 @@ export function render(state) {
     <div class="page-header">
       <div>
         <div class="page-title">Settings</div>
-        <div class="page-subtitle">Household · Display · Accounts · Categories · Recurring · Theme</div>
+        <div class="page-subtitle">Household · Display · Accounts · Categories · Recurring · Budgets · Theme</div>
       </div>
     </div>
 
@@ -175,6 +176,7 @@ export function render(state) {
     ${renderAccountsSection(state)}
     ${renderCategoriesSection(state)}
     ${renderRecurringSection(state)}
+    ${renderBudgetsSection(state)}
     ${renderThemeSection(state)}
     ${renderAccountSection(state)}
   `;
@@ -184,6 +186,7 @@ export function render(state) {
   wireAccountsSection(state);
   wireCategoriesSection(state);
   wireRecurringSection(state);
+  wireBudgetsSection(state);
   wireTheme(state);
 }
 
@@ -612,12 +615,16 @@ function renderAccountsSection(state) {
   return `<div class="section">
     <div class="section-header">
       <div class="section-title">Accounts</div>
-      <button class="btn btn-primary btn-sm" id="settings-add-acc-btn">+ Add account</button>
+      <div class="flex gap-2 items-center">
+        <button class="btn btn-danger btn-sm hidden" id="settings-acc-delete-sel">Delete selected</button>
+        <button class="btn btn-primary btn-sm" id="settings-add-acc-btn">+ Add account</button>
+      </div>
     </div>
     <div class="card" style="padding:0">
       <div class="table-wrap">
         <table class="table">
           <thead><tr>
+            <th style="width:32px"><input type="checkbox" class="settings-select-all" data-section="acc" /></th>
             <th style="width:24px"></th>
             <th>Name</th><th>Type</th><th class="amount-col">Balance</th><th>Status</th><th style="width:120px"></th>
           </tr></thead>
@@ -633,6 +640,7 @@ function renderAccountsSection(state) {
               const bal = calcAccountBalance(a, transactions);
               const et = effectiveType(a);
               return `<tr data-id="${a.id}" class="${a.is_archived ? 'text-muted' : ''}">
+                <td><input type="checkbox" class="settings-acc-cb" data-id="${a.id}" /></td>
                 <td class="drag-handle" style="cursor:grab;color:var(--text-muted);font-size:1rem;user-select:none">⠿</td>
                 <td><span style="display:inline-block;width:10px;height:10px;border-radius:50%;background:${a.color || 'var(--accent)'};margin-right:.5rem"></span>${escHtml(a.name)}</td>
                 <td class="text-sm">${et}${a.type === 'custom' ? ` (${escHtml(a.custom_type || '')})` : ''}</td>
@@ -712,6 +720,15 @@ function wireAccountsSection(state) {
       }
     });
   });
+
+  wireMassSelect('acc', 'settings-acc-cb', async (ids) => {
+    await Promise.all(ids.map(id =>
+      App.supabase.from('accounts').delete().eq('id', id).eq('household_id', App.state.household.id)
+    ));
+    state.accounts = state.accounts.filter(a => !ids.includes(a.id));
+    App.toast(`Deleted ${ids.length} account${ids.length > 1 ? 's' : ''}`, 'success');
+    render(state);
+  });
 }
 
 // ── 5. CATEGORIES ─────────────────────────────────────────────
@@ -722,7 +739,10 @@ function renderCategoriesSection(state) {
   return `<div class="section">
     <div class="section-header">
       <div class="section-title">Categories</div>
-      <button class="btn btn-primary btn-sm" id="settings-add-group-btn">+ Add group</button>
+      <div class="flex gap-2 items-center">
+        <button class="btn btn-danger btn-sm hidden" id="settings-cat-delete-sel">Delete selected</button>
+        <button class="btn btn-primary btn-sm" id="settings-add-group-btn">+ Add group</button>
+      </div>
     </div>
     <div class="card" style="padding:0">
       ${groups.length === 0 ? `<div class="empty-state">No categories yet</div>` :
@@ -733,6 +753,7 @@ function renderCategoriesSection(state) {
           return `<div class="cat-group-row" data-id="${g.id}" style="border-bottom:1px solid var(--border)">
             <div class="flex items-center justify-between" style="padding:.65rem 1rem">
               <div class="flex items-center gap-2" style="cursor:pointer;flex:1" data-collapse-toggle="${g.id}">
+                <input type="checkbox" class="settings-cat-cb" data-id="${g.id}" onclick="event.stopPropagation()" style="flex-shrink:0" />
                 <span class="drag-handle" style="cursor:grab;color:var(--text-muted);font-size:1rem;user-select:none" onclick="event.stopPropagation()">⠿</span>
                 <span class="cat-collapse-chevron text-muted" style="font-size:.75rem;width:1rem;text-align:center;transition:transform .15s">${isCollapsed ? '▸' : '▾'}</span>
                 <span style="font-size:1.1rem">${escHtml(g.icon || '')}</span>
@@ -752,6 +773,7 @@ function renderCategoriesSection(state) {
               ${subs.map(s => `<div class="cat-sub-row" data-id="${s.id}" style="padding:.5rem 1rem .5rem 2.5rem;border-top:1px solid var(--border)40">
                 <div class="flex items-center justify-between">
                   <div class="flex items-center gap-2">
+                    <input type="checkbox" class="settings-cat-cb" data-id="${s.id}" style="flex-shrink:0" />
                     <span class="drag-handle" style="cursor:grab;color:var(--text-muted);font-size:1rem;user-select:none">⠿</span>
                     <span>${escHtml(s.icon || '')}</span>
                     ${s.color ? `<span style="width:.5rem;height:.5rem;border-radius:50%;background:${escHtml(s.color)};flex-shrink:0;display:inline-block"></span>` : ''}
@@ -842,6 +864,15 @@ function wireCategoriesSection(state) {
         App.toast('Error: ' + error.message, 'error');
       }
     });
+  });
+
+  wireMassSelect('cat', 'settings-cat-cb', async (ids) => {
+    await Promise.all(ids.map(id =>
+      App.supabase.from('categories').delete().eq('id', id).eq('household_id', App.state.household.id)
+    ));
+    state.categories = state.categories.filter(c => !ids.includes(c.id));
+    App.toast(`Deleted ${ids.length} categor${ids.length > 1 ? 'ies' : 'y'}`, 'success');
+    render(state);
   });
 }
 
@@ -949,19 +980,24 @@ function renderRecurringSection(state) {
   return `<div class="section">
     <div class="section-header">
       <div class="section-title">Recurring Templates</div>
-      <button class="btn btn-primary btn-sm" id="settings-add-tmpl-btn">+ Create template</button>
+      <div class="flex gap-2 items-center">
+        <button class="btn btn-danger btn-sm hidden" id="settings-rec-delete-sel">Delete selected</button>
+        <button class="btn btn-primary btn-sm" id="settings-add-tmpl-btn">+ Create template</button>
+      </div>
     </div>
     <div class="card" style="padding:0">
       ${!recurringTemplates.length ? `<div class="empty-state">No recurring templates</div>` :
         `<div class="table-wrap">
           <table class="table">
             <thead><tr>
+              <th style="width:32px"><input type="checkbox" class="settings-select-all" data-section="rec" /></th>
               <th>Description</th><th>Amount</th><th>Frequency</th><th>Status</th><th style="width:120px"></th>
             </tr></thead>
             <tbody>
               ${recurringTemplates.map(t => {
                 const cat = categories.find(c => c.id === t.category_id);
-                return `<tr class="${t.is_active ? '' : 'text-muted'}">
+                return `<tr class="${t.is_active ? '' : 'text-muted'}" data-id="${t.id}">
+                  <td><input type="checkbox" class="settings-rec-cb" data-id="${t.id}" /></td>
                   <td>
                     <div>${escHtml(t.description)}</div>
                     <div class="text-sm text-muted">${cat ? escHtml(cat.icon + ' ' + cat.name) : '—'}</div>
@@ -1017,6 +1053,127 @@ function wireRecurringSection(state) {
         render(state);
       }
     });
+  });
+
+  wireMassSelect('rec', 'settings-rec-cb', async (ids) => {
+    await Promise.all(ids.map(id =>
+      App.supabase.from('recurring_templates').delete().eq('id', id).eq('household_id', App.state.household.id)
+    ));
+    state.recurringTemplates = state.recurringTemplates.filter(t => !ids.includes(t.id));
+    App.toast(`Deleted ${ids.length} template${ids.length > 1 ? 's' : ''}`, 'success');
+    render(state);
+  });
+}
+
+// ── MASS SELECT HELPER ────────────────────────────────────────
+function wireMassSelect(sectionKey, cbClass, onDelete) {
+  const selectAll = document.querySelector(`.settings-select-all[data-section="${sectionKey}"]`);
+  const delBtn    = document.getElementById(`settings-${sectionKey}-delete-sel`);
+  if (!delBtn) return;
+
+  const getCbs = () => [...document.querySelectorAll(`.${cbClass}`)];
+
+  const update = () => {
+    const cbs = getCbs();
+    const checked = cbs.filter(c => c.checked);
+    delBtn.classList.toggle('hidden', checked.length === 0);
+    delBtn.textContent = `Delete selected (${checked.length})`;
+    if (selectAll) {
+      selectAll.checked = checked.length === cbs.length && cbs.length > 0;
+      selectAll.indeterminate = checked.length > 0 && checked.length < cbs.length;
+    }
+  };
+
+  selectAll?.addEventListener('change', () => {
+    getCbs().forEach(cb => cb.checked = selectAll.checked);
+    update();
+  });
+
+  document.querySelectorAll(`.${cbClass}`).forEach(cb => cb.addEventListener('change', update));
+
+  delBtn.addEventListener('click', async () => {
+    const ids = getCbs().filter(c => c.checked).map(c => c.dataset.id);
+    if (!ids.length) return;
+    const ok = await App.openConfirm('Delete selected', `Permanently delete ${ids.length} item${ids.length > 1 ? 's' : ''}?`);
+    if (!ok) return;
+    await onDelete(ids);
+  });
+}
+
+// ── 6b. BUDGETS ───────────────────────────────────────────────
+function renderBudgetsSection(state) {
+  const { budgets, categories } = state;
+  const cur = App.currency();
+
+  return `<div class="section">
+    <div class="section-header">
+      <div class="section-title">Budgets</div>
+      <div class="flex gap-2 items-center">
+        <button class="btn btn-danger btn-sm hidden" id="settings-bgt-delete-sel">Delete selected</button>
+        <button class="btn btn-primary btn-sm" id="settings-add-bgt-btn">+ Add budget</button>
+      </div>
+    </div>
+    <div class="card" style="padding:0">
+      ${!budgets.length ? `<div class="empty-state">No budgets yet</div>` :
+        `<div class="table-wrap"><table class="table">
+          <thead><tr>
+            <th style="width:32px"><input type="checkbox" class="settings-select-all" data-section="bgt" /></th>
+            <th>Category</th><th class="amount-col">Limit / period</th><th>Type</th><th>Rollover</th><th style="width:90px"></th>
+          </tr></thead>
+          <tbody>
+            ${budgets.map(b => {
+              const cat = categories.find(c => c.id === b.category_id);
+              return `<tr data-id="${b.id}">
+                <td><input type="checkbox" class="settings-bgt-cb" data-id="${b.id}" /></td>
+                <td class="text-sm">${cat ? escHtml((cat.icon||'')+' '+cat.name) : '—'}</td>
+                <td class="amount-col text-mono">${fmtCurrency(b.amount, cur)}</td>
+                <td class="text-sm">${b.period_type || 'monthly'}</td>
+                <td>${b.rollover_enabled ? '<span class="badge badge-green">On</span>' : '<span class="badge badge-neutral">Off</span>'}</td>
+                <td>
+                  <div class="flex gap-1">
+                    <button class="btn btn-ghost btn-sm settings-bgt-edit" data-id="${b.id}">Edit</button>
+                    <button class="btn btn-ghost btn-sm btn-danger settings-bgt-delete" data-id="${b.id}">✕</button>
+                  </div>
+                </td>
+              </tr>`;
+            }).join('')}
+          </tbody>
+        </table></div>`
+      }
+    </div>
+  </div>`;
+}
+
+function wireBudgetsSection(state) {
+  document.getElementById('settings-add-bgt-btn')?.addEventListener('click', () => openBudgetModal(state));
+
+  document.querySelectorAll('.settings-bgt-edit').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const b = state.budgets.find(x => x.id === btn.dataset.id);
+      if (b) openBudgetModal(state, b);
+    });
+  });
+
+  document.querySelectorAll('.settings-bgt-delete').forEach(btn => {
+    btn.addEventListener('click', async () => {
+      const ok = await App.openConfirm('Delete budget', 'This will delete the budget and all snapshots.');
+      if (!ok) return;
+      const { error } = await App.supabase.from('budgets').delete().eq('id', btn.dataset.id).eq('household_id', App.state.household.id);
+      if (!error) {
+        state.budgets = state.budgets.filter(b => b.id !== btn.dataset.id);
+        App.toast('Budget deleted', 'success');
+        render(state);
+      }
+    });
+  });
+
+  wireMassSelect('bgt', 'settings-bgt-cb', async (ids) => {
+    await Promise.all(ids.map(id =>
+      App.supabase.from('budgets').delete().eq('id', id).eq('household_id', App.state.household.id)
+    ));
+    state.budgets = state.budgets.filter(b => !ids.includes(b.id));
+    App.toast(`Deleted ${ids.length} budget${ids.length > 1 ? 's' : ''}`, 'success');
+    render(state);
   });
 }
 

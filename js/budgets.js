@@ -276,7 +276,7 @@ function periodMultiplier(periodType, n) {
 }
 
 // ── ADD / EDIT MODAL ──────────────────────────────────────────
-function openBudgetModal(state, budget = null) {
+export function openBudgetModal(state, budget = null) {
   const isEdit = !!budget;
   const catOpts = buildCategoryOptions(state.categories, budget?.category_id);
 
@@ -343,6 +343,6 @@ function openBudgetModal(state, budget = null) {
       App.toast('Budget added', 'success');
     }
     App.closeModal();
-    render(state);
+    App.refreshCurrentPage();
   });
 }
