@@ -29,10 +29,10 @@ export function render(state) {
   const active = recurringTemplates.filter(t => t.is_active);
   const paused = recurringTemplates.filter(t => !t.is_active);
 
-  // Summary: expected this period + due not logged
+  // Summary: expected this period (by type) + due not logged
   const period = App.cyclePeriod();
-  const expectedThisPeriod = calcExpectedThisPeriod(state, period);
-  const dueNotLogged = calcDueNotLogged(state);
+  const expected = calcExpectedByType(state, period);
+  const dueNotLogged = calcDueNotLogged(state, period);
 
   el.innerHTML = `
     <div class="page-header">
@@ -46,10 +46,22 @@ export function render(state) {
     </div>
 
     <!-- Summary cards -->
-    <div class="stat-grid" style="grid-template-columns:repeat(2,1fr);max-width:500px">
+    <div class="stat-grid" style="grid-template-columns:repeat(auto-fill,minmax(160px,1fr))">
       <div class="card card-sm">
-        <div class="card-title text-muted text-sm">Expected this period</div>
-        <div class="card-value text-mono">${fmtCurrency(expectedThisPeriod, cur)}</div>
+        <div class="card-title text-muted text-sm">Expected income</div>
+        <div class="card-value text-mono c-green">${fmtCurrency(expected.income, cur)}</div>
+      </div>
+      <div class="card card-sm">
+        <div class="card-title text-muted text-sm">Expected spend</div>
+        <div class="card-value text-mono">${fmtCurrency(expected.spend, cur)}</div>
+      </div>
+      <div class="card card-sm">
+        <div class="card-title text-muted text-sm">Expected debt payments</div>
+        <div class="card-value text-mono">${fmtCurrency(expected.debt, cur)}</div>
+      </div>
+      <div class="card card-sm">
+        <div class="card-title text-muted text-sm">Expected S&amp;I</div>
+        <div class="card-value text-mono">${fmtCurrency(expected.si, cur)}</div>
       </div>
       <div class="card card-sm">
         <div class="card-title text-muted text-sm">Due not yet logged</div>
@@ -177,13 +189,17 @@ function calcNextDue(t) {
 }
 
 // ── SUMMARY COMPUTATIONS ──────────────────────────────────────
-function calcExpectedThisPeriod(state, period) {
-  const { recurringTemplates } = state;
-  let total = 0;
-  for (const t of recurringTemplates.filter(x => x.is_active)) {
-    total += calcOccurrencesInPeriod(t, period) * Number(t.amount);
+function calcExpectedByType(state, period) {
+  const out = { income: 0, spend: 0, debt: 0, si: 0 };
+  for (const t of state.recurringTemplates.filter(x => x.is_active)) {
+    const amt = calcOccurrencesInPeriod(t, period) * Number(t.amount);
+    if      (t.type === 'income')                                              out.income += amt;
+    else if (t.type === 'spend')                                               out.spend  += amt;
+    else if (t.type === 'debt_payment')                                        out.debt   += amt;
+    else if (t.type === 'savings' || t.type === 'investment' ||
+             t.type === 'withdrawal')                                          out.si     += amt;
   }
-  return total;
+  return out;
 }
 
 function calcOccurrencesInPeriod(t, period) {
@@ -220,19 +236,49 @@ function calcOccurrencesInPeriod(t, period) {
   return count;
 }
 
-function calcDueNotLogged(state) {
+function getOccurrenceDatesInPeriod(t, period) {
+  const dates = [];
+  const { start, end } = period;
+  const tStart = parseISO(t.start_date);
+  if (!tStart || tStart > end) return dates;
+  const effectiveStart = new Date(Math.max(tStart.getTime(), start.getTime()));
+
+  if (t.frequency === 'weekly' || t.frequency === 'bi-weekly') {
+    const step = t.frequency === 'weekly' ? 7 : 14;
+    let d = new Date(effectiveStart);
+    const targetDow = t.day_of_week ?? 0;
+    while (((d.getDay() + 6) % 7) !== targetDow) d.setDate(d.getDate() + 1);
+    while (d <= end) { if (d >= start) dates.push(toISO(d)); d.setDate(d.getDate() + step); }
+  } else if (t.frequency === 'monthly') {
+    const dom = t.day_of_month || 1;
+    for (let m = start.getMonth(), y = start.getFullYear(); new Date(y, m, 1) <= end; m++) {
+      if (m > 11) { m = 0; y++; }
+      const day = Math.min(dom, new Date(y, m + 1, 0).getDate());
+      const d = new Date(y, m, day);
+      if (d >= start && d <= end && d >= tStart) dates.push(toISO(d));
+    }
+  } else if (t.frequency === 'annually') {
+    const dom = t.day_of_month || 1;
+    const moy = (t.month_of_year || 1) - 1;
+    for (let y = start.getFullYear(); y <= end.getFullYear(); y++) {
+      const day = Math.min(dom, new Date(y, moy + 1, 0).getDate());
+      const d = new Date(y, moy, day);
+      if (d >= start && d <= end && d >= tStart) dates.push(toISO(d));
+    }
+  }
+  return dates;
+}
+
+function calcDueNotLogged(state, period) {
   const { recurringTemplates, transactions } = state;
-  const today = new Date(); today.setHours(0,0,0,0);
-  const existing = new Set(
+  const logged = new Set(
     transactions.filter(tx => tx.recurring_template_id)
       .map(tx => `${tx.recurring_template_id}|${tx.date}`)
   );
   let total = 0;
   for (const t of recurringTemplates.filter(x => x.is_active)) {
-    const nextDue = calcNextDue(t);
-    if (nextDue && nextDue <= toISO(today)) {
-      const key = `${t.id}|${nextDue}`;
-      if (!existing.has(key)) total += Number(t.amount);
+    for (const dateStr of getOccurrenceDatesInPeriod(t, period)) {
+      if (!logged.has(`${t.id}|${dateStr}`)) total += Number(t.amount);
     }
   }
   return total;
