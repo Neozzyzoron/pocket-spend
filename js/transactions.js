@@ -664,30 +664,25 @@ function buildFreqMap(state) {
 }
 
 // ── ADD / EDIT MODAL ──────────────────────────────────────────
-export function openTxModal(state, tx = null) {
-  const isEdit = !!tx;
+export function openTxModal(state) {
   const { categories, accounts, profiles } = state;
-  const cur = App.currency();
-  const defaultType = toFormType(tx?.type);
 
   // Build quick-pick list: saved favorites or top-10 frequent
+  const freq = buildFreqMap(state);
+  const savedIds = getQuickPickIds(state);
   let quickPicks = [];
-  if (!isEdit) {
-    const freq = buildFreqMap(state);
-    const savedIds = getQuickPickIds(state);
-    if (Array.isArray(savedIds)) {
-      savedIds.forEach(id => {
-        const hit = state.transactions.find(t => t.id === id);
-        if (hit) quickPicks.push({ tx: hit });
-      });
-    } else {
-      quickPicks = freq.slice(0, 10);
-    }
+  if (Array.isArray(savedIds)) {
+    savedIds.forEach(id => {
+      const hit = state.transactions.find(t => t.id === id);
+      if (hit) quickPicks.push({ tx: hit });
+    });
+  } else {
+    quickPicks = freq.slice(0, 10);
   }
 
   const html = `
     <form id="tx-form" autocomplete="off">
-      ${!isEdit ? `<div style="margin-bottom:1rem" id="qp-section">
+      <div style="margin-bottom:1rem" id="qp-section">
         <div class="flex items-center justify-between" style="margin-bottom:.4rem">
           <span class="text-sm text-muted">Quick add</span>
           <button type="button" class="btn btn-ghost btn-sm" id="qp-manage-btn" style="font-size:.75rem;padding:.1rem .5rem">✎ Manage</button>
@@ -707,71 +702,64 @@ export function openTxModal(state, tx = null) {
             </div>`;
           }).join('')}
         </div>
-      </div>` : ''}
+      </div>
       <div class="form-row">
         <div class="form-group" style="flex:1">
           <label class="form-label">Category</label>
           <select class="form-select" id="tf-cat">
             <option value="">— None (transfer/adjustment) —</option>
-            ${buildCategoryOptions(categories, tx?.category_id)}
+            ${buildCategoryOptions(categories)}
           </select>
         </div>
         <div class="form-group" style="flex:1">
           <label class="form-label">Amount *</label>
-          <input class="form-input text-mono" type="number" id="tf-amount" placeholder="0.00" step="0.01" min="0" value="${tx?.amount || ''}" />
+          <input class="form-input text-mono" type="number" id="tf-amount" placeholder="0.00" step="0.01" min="0" />
         </div>
       </div>
       <div class="form-row">
         <div class="form-group" style="flex:1">
           <label class="form-label">Description</label>
-          <input class="form-input" id="tf-desc" placeholder="Description" value="${escHtml(tx?.description || '')}" />
+          <input class="form-input" id="tf-desc" placeholder="Description" />
         </div>
         <div class="form-group" style="flex:1">
           <label class="form-label">Date *</label>
-          <input class="form-input" type="date" id="tf-date" value="${tx?.date || todayISO()}" />
+          <input class="form-input" type="date" id="tf-date" value="${todayISO()}" />
         </div>
       </div>
       <div class="form-row">
         <div class="form-group" style="flex:1">
           <label class="form-label">Type *</label>
           <select class="form-select" id="tf-type">
-            ${TX_FORM_TYPES.map(([k,v]) => `<option value="${k}"${defaultType===k?' selected':''}>${v}</option>`).join('')}
+            ${TX_FORM_TYPES.map(([k,v]) => `<option value="${k}"${k==='spend'?' selected':''}>${v}</option>`).join('')}
           </select>
         </div>
         <div class="form-group" style="flex:1">
           <label class="form-label">Person</label>
           <select class="form-select" id="tf-person">
-            ${profiles.map(p => `<option value="${p.id}"${(tx?.user_id || App.state.user.id) === p.id ? ' selected' : ''}>${escHtml(p.display_name)}</option>`).join('')}
+            ${profiles.map(p => `<option value="${p.id}"${App.state.user.id === p.id ? ' selected' : ''}>${escHtml(p.display_name)}</option>`).join('')}
           </select>
         </div>
       </div>
       <div id="tf-account-fields"></div>
-      ${isEdit ? `<div class="form-group">
-        <label class="form-label">Status</label>
-        <select class="form-select" id="tf-status">
-          <option value="confirmed"${tx?.status !== 'pending' ? ' selected' : ''}>Confirmed</option>
-          <option value="pending"${tx?.status === 'pending' ? ' selected' : ''}>Pending</option>
-        </select>
-      </div>` : ''}
       <div class="form-group">
         <label class="form-label">Notes</label>
-        <textarea class="form-textarea" id="tf-notes" rows="2" placeholder="Optional notes">${escHtml(tx?.notes || '')}</textarea>
+        <textarea class="form-textarea" id="tf-notes" rows="2" placeholder="Optional notes"></textarea>
       </div>
-      ${!isEdit ? `<div class="form-check" style="margin-bottom:1rem">
+      <div class="form-check" style="margin-bottom:1rem">
         <label><input type="checkbox" id="tf-recurring-check" /> Create recurring template</label>
-      </div>` : ''}
+      </div>
       <div id="tf-error" class="form-error hidden"></div>
       <div class="btn-row">
         <button type="button" class="btn btn-ghost" onclick="App.closeModal()">Cancel</button>
-        <button type="submit" class="btn btn-primary">${isEdit ? 'Update' : 'Add transaction'}</button>
+        <button type="submit" class="btn btn-primary">Add transaction</button>
       </div>
     </form>
   `;
 
-  App.openModal(isEdit ? 'Edit Transaction' : 'Add Transaction', html);
+  App.openModal('Add Transaction', html);
 
   // Render account fields based on current type
-  renderTxAccountFields(state, tx);
+  renderTxAccountFields(state, null);
 
   // Quick-pick chips pre-fill the form
   function wireQuickPickChips() {
@@ -828,11 +816,11 @@ export function openTxModal(state, tx = null) {
     renderTxAccountFields(state, tx);
   });
 
-  document.getElementById('tf-type')?.addEventListener('change', () => renderTxAccountFields(state, tx));
+  document.getElementById('tf-type')?.addEventListener('change', () => renderTxAccountFields(state, null));
 
   document.getElementById('tx-form')?.addEventListener('submit', async e => {
     e.preventDefault();
-    await saveTx(state, tx);
+    await saveTx(state);
   });
 }
 
@@ -883,7 +871,7 @@ function renderTxAccountFields(state, tx = null) {
   }
 }
 
-async function saveTx(state, existing = null) {
+async function saveTx(state) {
   const errEl = document.getElementById('tf-error');
   errEl.classList.add('hidden');
 
@@ -895,9 +883,7 @@ async function saveTx(state, existing = null) {
   const account_id  = document.getElementById('tf-acc')?.value || null;
   const to_account_id = document.getElementById('tf-to-acc')?.value || null;
   const user_id     = document.getElementById('tf-person')?.value || App.state.user.id;
-  const status      = existing
-    ? (document.getElementById('tf-status')?.value || 'confirmed')
-    : (date > todayISO() ? 'pending' : 'confirmed');
+  const status      = date > todayISO() ? 'pending' : 'confirmed';
   const notes       = document.getElementById('tf-notes')?.value.trim() || null;
 
   // Validation
@@ -913,28 +899,18 @@ async function saveTx(state, existing = null) {
     user_id, status, notes, household_id: App.state.household.id,
   };
 
-  if (existing) {
-    const { error } = await App.supabase
-      .from('transactions').update(payload).eq('id', existing.id).eq('household_id', App.state.household.id);
-    if (error) { showErr(errEl, error.message); return; }
-    const idx = state.transactions.findIndex(t => t.id === existing.id);
-    if (idx !== -1) state.transactions[idx] = { ...state.transactions[idx], ...payload };
-    App.toast('Transaction updated', 'success');
-  } else {
-    const { data, error } = await App.supabase
-      .from('transactions').insert(payload).select().single();
-    if (error) { showErr(errEl, error.message); return; }
-    state.transactions.unshift(data);
-    state.recentlyInserted?.add(data.id);
-    setTimeout(() => state.recentlyInserted?.delete(data.id), 5000);
+  const { data, error } = await App.supabase
+    .from('transactions').insert(payload).select().single();
+  if (error) { showErr(errEl, error.message); return; }
+  state.transactions.unshift(data);
+  state.recentlyInserted?.add(data.id);
+  setTimeout(() => state.recentlyInserted?.delete(data.id), 5000);
 
-    // Handle recurring template creation
-    const wantsRecurring = document.getElementById('tf-recurring-check')?.checked;
-    if (wantsRecurring && data) {
-      await createRecurringFromTx(data);
-    }
-    App.toast('Transaction added', 'success');
+  const wantsRecurring = document.getElementById('tf-recurring-check')?.checked;
+  if (wantsRecurring && data) {
+    await createRecurringFromTx(data);
   }
+  App.toast('Transaction added', 'success');
 
   App.closeModal();
   render(state);
