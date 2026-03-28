@@ -6,7 +6,7 @@
 import {
   fmtCurrency, fmtRelDate, getPeriods,
   isEffective, effectiveType, isLiquid, calcAccountBalance,
-  buildCategoryTree, escHtml, parseISO, todayDate,
+  buildCategoryTree, escHtml, parseISO, todayDate, TX_TYPE_LABELS,
 } from './utils.js';
 import { openTxModal } from './transactions.js';
 
@@ -70,10 +70,10 @@ export function render(state) {
       <div class="section-header">
         <div class="section-title">Breakdown</div>
         <div class="toggle-group">
-          <button class="toggle-group-btn breakdown-tab active" data-view="nature">Nature</button>
+          <button class="toggle-group-btn breakdown-tab active" data-view="type">Tx Type</button>
+          <button class="toggle-group-btn breakdown-tab" data-view="nature">Nature</button>
           <button class="toggle-group-btn breakdown-tab" data-view="group">Group</button>
           <button class="toggle-group-btn breakdown-tab" data-view="sub">Subcategory</button>
-          <button class="toggle-group-btn breakdown-tab" data-view="all">All</button>
         </div>
       </div>
       <div id="breakdown-rows" style="display:flex;gap:1rem;flex-wrap:wrap"></div>
@@ -98,7 +98,7 @@ export function render(state) {
   );
 
   if (sections.breakdown) {
-    renderBreakdownRows(state, period, cur, 'nature');
+    renderBreakdownRows(state, period, cur, 'type');
     el.querySelectorAll('.breakdown-tab').forEach(tab => {
       tab.addEventListener('click', () => {
         el.querySelectorAll('.breakdown-tab').forEach(t => t.classList.remove('active'));
@@ -332,6 +332,15 @@ function rowColor(row, i) {
 
 // Returns [name, amount, color|null] tuples
 function buildRows(txList, view, categories) {
+  if (view === 'type') {
+    const map = {}, colorMap = {};
+    for (const tx of txList) {
+      const key = TX_TYPE_LABELS[tx.type] || tx.type;
+      map[key] = (map[key] || 0) + Number(tx.amount);
+      if (!colorMap[key]) colorMap[key] = NATURE_COLORS[key] || null;
+    }
+    return Object.entries(map).sort((a,b) => b[1]-a[1]).map(([n,v]) => [n, v, colorMap[n]]);
+  }
   if (view === 'nature') {
     const map = {}, colorMap = {};
     for (const tx of txList) {
