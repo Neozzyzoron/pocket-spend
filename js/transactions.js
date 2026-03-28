@@ -687,6 +687,12 @@ export function openTxModal(state, tx = null) {
 
   const html = `
     <form id="tx-form" autocomplete="off">
+      <div class="form-group" style="margin-bottom:.75rem">
+        <label class="form-label">Type *</label>
+        <select class="form-select" id="tf-type">
+          ${TX_FORM_TYPES.map(([k,v]) => `<option value="${k}"${defaultType===k?' selected':''}>${v}</option>`).join('')}
+        </select>
+      </div>
       ${!isEdit ? `<div style="margin-bottom:1rem" id="qp-section">
         <div class="flex items-center justify-between" style="margin-bottom:.4rem">
           <span class="text-sm text-muted">Quick add</span>
@@ -717,25 +723,19 @@ export function openTxModal(state, tx = null) {
           </select>
         </div>
         <div class="form-group" style="flex:1">
-          <label class="form-label">Type *</label>
-          <select class="form-select" id="tf-type">
-            ${TX_FORM_TYPES.map(([k,v]) => `<option value="${k}"${defaultType===k?' selected':''}>${v}</option>`).join('')}
-          </select>
-        </div>
-      </div>
-      <div class="form-row">
-        <div class="form-group" style="flex:1">
-          <label class="form-label">Date *</label>
-          <input class="form-input" type="date" id="tf-date" value="${tx?.date || todayISO()}" />
-        </div>
-        <div class="form-group" style="flex:1">
           <label class="form-label">Amount *</label>
           <input class="form-input text-mono" type="number" id="tf-amount" placeholder="0.00" step="0.01" min="0" value="${tx?.amount || ''}" />
         </div>
       </div>
-      <div class="form-group">
-        <label class="form-label">Description</label>
-        <input class="form-input" id="tf-desc" placeholder="Description" value="${escHtml(tx?.description || '')}" />
+      <div class="form-row">
+        <div class="form-group" style="flex:1">
+          <label class="form-label">Description</label>
+          <input class="form-input" id="tf-desc" placeholder="Description" value="${escHtml(tx?.description || '')}" />
+        </div>
+        <div class="form-group" style="flex:1">
+          <label class="form-label">Date *</label>
+          <input class="form-input" type="date" id="tf-date" value="${tx?.date || todayISO()}" />
+        </div>
       </div>
       <div id="tf-account-fields"></div>
       <div class="form-row">
