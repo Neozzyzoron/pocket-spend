@@ -258,6 +258,13 @@ function openAccountModal(state, acc = null) {
       <div class="form-hint">Savings/investment only</div>
     </div>
     <div class="form-group">
+      <label class="form-label">Default owner</label>
+      <select class="form-select" id="af-owner">
+        <option value="">— None —</option>
+        ${state.profiles.map(p => `<option value="${p.id}"${acc?.default_user_id === p.id ? ' selected' : ''}>${escHtml(p.display_name)}</option>`).join('')}
+      </select>
+    </div>
+    <div class="form-group">
       <label class="form-label">Color</label>
       ${colorSwatchesHtml('af-color')}
       <input class="form-input" type="color" id="af-color" value="${acc?.color || '#22c55e'}" style="height:38px;padding:2px 4px" />
@@ -331,7 +338,9 @@ function openAccountModal(state, acc = null) {
       }
     }
 
+    const default_user_id = document.getElementById('af-owner')?.value || null;
     const payload = { name, type, color, opening_balance, expected_rate,
+                      default_user_id,
                       custom_type: type === 'custom' ? custom_type : null,
                       base_type:   type === 'custom' ? base_type   : null,
                       household_id: App.state.household.id };

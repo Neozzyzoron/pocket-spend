@@ -818,6 +818,16 @@ export function openTxModal(state) {
 
   document.getElementById('tf-type')?.addEventListener('change', () => renderTxAccountFields(state, null));
 
+  // Auto-fill person from account's default owner
+  document.getElementById('tf-account-fields')?.addEventListener('change', e => {
+    if (e.target.id !== 'tf-acc') return;
+    const acc = state.accounts.find(a => a.id === e.target.value);
+    if (acc?.default_user_id) {
+      const personEl = document.getElementById('tf-person');
+      if (personEl) personEl.value = acc.default_user_id;
+    }
+  });
+
   document.getElementById('tx-form')?.addEventListener('submit', async e => {
     e.preventDefault();
     await saveTx(state);
