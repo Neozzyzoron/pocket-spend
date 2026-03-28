@@ -14,29 +14,25 @@ import { openBudgetModal } from './budgets.js';
 const collapsedGroups = new Set();
 
 // ── ICON PICKER DATA ──────────────────────────────────────────
-const CURATED_ICONS = {
-  'Food & Drink':  ['🍔','🍕','🍜','🥗','🍺','☕','🍰','🥩','🍱','🍣','🍦','🥤','🍷','🍳','🥐','🧁','🫕','🥘'],
-  'Transport':     ['🚗','🚇','✈️','🚕','🚲','⛽','🚌','🛵','🚂','🛻','🏍️','🚁','🅿️','🛳️'],
-  'Shopping':      ['👗','👟','📱','💻','🛍️','💄','👔','📷','🕶️','👜','🧴','🪥','🧣','🛒'],
-  'Health':        ['💊','🏥','🦷','👓','🏃','🩺','💉','🏋️','🧘','🚿','💆','🩹'],
-  'Home & Garden': ['🏠','🔧','💡','🛋️','🧹','🌿','🔑','🪴','🪑','🛏️','🪟','🔨'],
-  'Entertainment': ['🎬','🎵','🎮','📺','🎯','🎭','🎨','🎸','🎧','🎲','🎪','🎻'],
-  'Finance':       ['💰','💳','🏦','📈','💹','🏧','💵','📊','🪙','💸','📉','💎'],
-  'Education':     ['📚','🎓','✏️','🖊️','📝','🔬','📐','🖋️','📖','🗒️'],
-  'Travel':        ['🏖️','⛷️','🏕️','🗺️','🏔️','🌊','🗽','🌍','🌴','⛰️'],
-  'Utilities':     ['💧','⚡','📞','🌐','🔌','📡','♻️','🗑️'],
-  'Kids & Family': ['🧸','🎠','🎒','🎡','🧩','🪀','🎈','🍼','🧒','🎨'],
-  'Pets':          ['🐕','🐈','🦮','🐾','🐟','🐇','🐹','🐠'],
-};
-
-const EMOJI_CATS = {
-  'Smileys':  ['😀','😃','😄','😁','😅','🤣','😂','🙂','😊','😇','🥰','😍','🤩','😘','😋','😛','😜','🤪','😎','🥳'],
-  'People':   ['👋','✋','🤝','💪','👍','👎','✌️','🤞','🤟','🤙','🙌','👏','🙏','👐','🤲','👑','🧑','👨','👩','🧒'],
-  'Animals':  ['🐶','🐱','🐭','🐹','🐰','🦊','🐻','🐼','🐨','🐯','🦁','🐸','🐵','🐔','🐧','🦋','🐝','🌸','🌺','🦜'],
-  'Food':     ['🍏','🍎','🍊','🍋','🍇','🍓','🫐','🍒','🍑','🥝','🍅','🥥','🥑','🌽','🌶️','🍆','🥔','🧄','🧅','🥕'],
-  'Places':   ['🏠','🏡','🏢','🏥','🏦','🏨','🏪','🏫','⛪','🕌','🗼','🗽','⛩️','🏰','🌋','⛺','🚉','🚢','⛵','🗺️'],
-  'Objects':  ['⌚','📱','💻','⌨️','🖥️','📷','📸','📺','📻','🎙️','💡','🔦','🕯️','🔨','⚔️','🛡️','🔧','🔩','⚙️','🔑'],
-  'Symbols':  ['❤️','🧡','💛','💚','💙','💜','🖤','⭐','🌟','💫','✨','🔥','🌈','☀️','🌙','⚡','❄️','🌊','🍀','🎄'],
+const ICONS = {
+  'Food & Drink':    ['🍔','🍕','🍜','🥗','🍺','☕','🍰','🥩','🍱','🍣','🍦','🥤','🍷','🍳','🥐','🧁','🫕','🥘',
+                      '🍏','🍎','🍊','🍋','🍇','🍓','🫐','🍒','🍑','🥝','🍅','🥥','🥑','🌽','🌶️','🍆','🥔','🧄','🧅','🥕'],
+  'Transport':       ['🚗','🚇','✈️','🚕','🚲','⛽','🚌','🛵','🚂','🛻','🏍️','🚁','🅿️','🛳️'],
+  'Shopping':        ['👗','👟','📱','💻','🛍️','💄','👔','📷','🕶️','👜','🧴','🪥','🧣','🛒'],
+  'Health':          ['💊','🏥','🦷','👓','🏃','🩺','💉','🏋️','🧘','🚿','💆','🩹'],
+  'Home & Garden':   ['🏠','🔧','💡','🛋️','🧹','🌿','🔑','🪴','🪑','🛏️','🪟','🔨'],
+  'Entertainment':   ['🎬','🎵','🎮','📺','🎯','🎭','🎨','🎸','🎧','🎲','🎪','🎻'],
+  'Finance':         ['💰','💳','🏦','📈','💹','🏧','💵','📊','🪙','💸','📉','💎'],
+  'Education':       ['📚','🎓','✏️','🖊️','📝','🔬','📐','🖋️','📖','🗒️'],
+  'Travel & Places': ['🏖️','⛷️','🏕️','🗺️','🏔️','🌊','🗽','🌍','🌴','⛰️',
+                      '🏡','🏢','🏨','🏪','🏫','⛪','🕌','🗼','⛩️','🏰','🌋','⛺','🚉','🚢','⛵'],
+  'Utilities':       ['💧','⚡','📞','🌐','🔌','📡','♻️','🗑️'],
+  'Kids & Family':   ['🧸','🎠','🎒','🎡','🧩','🪀','🎈','🍼','🧒','🎨'],
+  'Animals & Pets':  ['🐕','🐈','🦮','🐾','🐟','🐇','🐠',
+                      '🐶','🐱','🐭','🐹','🐰','🦊','🐻','🐼','🐨','🐯','🦁','🐸','🐵','🐔','🐧','🦋','🐝','🌸','🌺','🦜'],
+  'People':          ['👋','✋','🤝','💪','👍','👎','✌️','🤞','🤟','🤙','🙌','👏','🙏','👐','🤲','👑','🧑','👨','👩','🧒'],
+  'Objects':         ['⌚','📱','💻','⌨️','🖥️','📷','📸','📺','📻','🎙️','💡','🔦','🕯️','🔨','⚔️','🛡️','🔧','🔩','⚙️','🔑'],
+  'Symbols':         ['❤️','🧡','💛','💚','💙','💜','🖤','⭐','🌟','💫','✨','🔥','🌈','☀️','🌙','⚡','❄️','🌊','🍀','🎄'],
 };
 
 function _ipGridHtml(icons) {
@@ -63,17 +59,14 @@ function buildIconPickerHtml() {
          margin-bottom:1rem;overflow:hidden">
       <div style="border-bottom:1px solid var(--border);padding:.4rem .5rem;display:flex;align-items:center;
                   gap:.4rem;background:var(--bg-subtle)">
-        <button type="button" class="btn btn-sm btn-primary ip-tab" data-tab="curated" style="flex-shrink:0">🎨 Curated</button>
-        <button type="button" class="btn btn-sm btn-ghost ip-tab" data-tab="emoji" style="flex-shrink:0">😀 Emoji</button>
-        <input type="text" id="cf-icon-search" placeholder="Search…"
+        <input type="text" id="cf-icon-search" placeholder="Search category…"
                style="flex:1;padding:.25rem .5rem;border:1px solid var(--border);border-radius:var(--radius-sm);
                       background:var(--bg-input);color:var(--text);font-size:.8rem;min-width:0" />
         <button type="button" id="cf-icon-clear" class="btn btn-ghost btn-sm" style="flex-shrink:0"
                 title="Clear icon">✕</button>
       </div>
-      <div id="cf-icon-grid" style="max-height:190px;overflow-y:auto;padding:.5rem">
-        <div id="ip-tab-curated">${_ipSectionHtml(CURATED_ICONS)}</div>
-        <div id="ip-tab-emoji" class="hidden">${_ipSectionHtml(EMOJI_CATS)}</div>
+      <div id="cf-icon-grid" style="max-height:210px;overflow-y:auto;padding:.5rem">
+        <div id="ip-all">${_ipSectionHtml(ICONS)}</div>
         <div id="ip-search-results" class="hidden"></div>
       </div>
     </div>`;
@@ -106,45 +99,22 @@ function wireIconPicker() {
     if (!picker.classList.contains('hidden')) searchEl?.focus();
   });
 
-  picker.querySelectorAll('.ip-tab').forEach(tab => {
-    tab.addEventListener('click', () => {
-      picker.querySelectorAll('.ip-tab').forEach(t => {
-        t.classList.remove('btn-primary');
-        t.classList.add('btn-ghost');
-      });
-      tab.classList.add('btn-primary');
-      tab.classList.remove('btn-ghost');
-      const which = tab.dataset.tab;
-      document.getElementById('ip-tab-curated').classList.toggle('hidden', which !== 'curated');
-      document.getElementById('ip-tab-emoji').classList.toggle('hidden', which !== 'emoji');
-      document.getElementById('ip-search-results').classList.add('hidden');
-      if (searchEl) searchEl.value = '';
-    });
-  });
-
   searchEl?.addEventListener('input', () => {
     const q = searchEl.value.trim().toLowerCase();
+    const allEl     = document.getElementById('ip-all');
     const resultsEl = document.getElementById('ip-search-results');
-    const curatedEl = document.getElementById('ip-tab-curated');
-    const emojiEl   = document.getElementById('ip-tab-emoji');
     if (!q) {
       resultsEl.classList.add('hidden');
-      const activeTab = picker.querySelector('.ip-tab.btn-primary')?.dataset.tab || 'curated';
-      curatedEl.classList.toggle('hidden', activeTab !== 'curated');
-      emojiEl.classList.toggle('hidden', activeTab !== 'emoji');
+      allEl.classList.remove('hidden');
       return;
     }
-    curatedEl.classList.add('hidden');
-    emojiEl.classList.add('hidden');
+    allEl.classList.add('hidden');
     resultsEl.classList.remove('hidden');
-
-    const all = [
-      ...Object.entries(CURATED_ICONS).flatMap(([cat, icons]) => icons.map(ic => ({ ic, cat }))),
-      ...Object.entries(EMOJI_CATS).flatMap(([cat, icons]) => icons.map(ic => ({ ic, cat }))),
-    ];
-    const matches = all.filter(({ cat }) => cat.toLowerCase().includes(q));
+    const matches = Object.entries(ICONS)
+      .filter(([cat]) => cat.toLowerCase().includes(q))
+      .flatMap(([, icons]) => icons);
     resultsEl.innerHTML = matches.length
-      ? `<div style="display:flex;flex-wrap:wrap;gap:1px">${_ipGridHtml(matches.map(m => m.ic))}</div>`
+      ? `<div style="display:flex;flex-wrap:wrap;gap:1px">${_ipGridHtml(matches)}</div>`
       : `<div class="text-muted text-sm" style="padding:.5rem">No matches for "${escHtml(q)}"</div>`;
     wireButtons(resultsEl);
   });
