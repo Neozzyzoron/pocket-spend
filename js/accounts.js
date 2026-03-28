@@ -220,9 +220,9 @@ function openAccountModal(state, acc = null) {
         </select>
       </div>
       <div class="form-group" style="flex:1">
-        <label class="form-label">Color</label>
-        ${colorSwatchesHtml('af-color')}
-        <input class="form-input" type="color" id="af-color" value="${acc?.color || '#22c55e'}" style="height:38px;padding:2px 4px" />
+        <label class="form-label">Opening balance</label>
+        <input class="form-input text-mono" type="number" id="af-opening" step="0.01" value="${acc?.opening_balance || 0}" />
+        <div class="form-hint">For loans: amount owed (positive)</div>
       </div>
     </div>
     <div id="af-custom-fields" class="${acc?.type === 'custom' ? '' : 'hidden'}">
@@ -252,17 +252,15 @@ function openAccountModal(state, acc = null) {
         <div class="form-hint">New types are saved automatically for future accounts</div>
       </div>
     </div>
-    <div class="form-row">
-      <div class="form-group" style="flex:1">
-        <label class="form-label">Opening balance</label>
-        <input class="form-input text-mono" type="number" id="af-opening" step="0.01" value="${acc?.opening_balance || 0}" />
-        <div class="form-hint">For loans: amount owed (positive)</div>
-      </div>
-      <div class="form-group" style="flex:1">
-        <label class="form-label">Expected rate % p.a.</label>
-        <input class="form-input text-mono" type="number" id="af-rate" step="0.01" value="${acc?.expected_rate || ''}" placeholder="e.g. 3.5" />
-        <div class="form-hint">Savings/investment only</div>
-      </div>
+    <div class="form-group">
+      <label class="form-label">Expected rate % p.a.</label>
+      <input class="form-input text-mono" type="number" id="af-rate" step="0.01" value="${acc?.expected_rate || ''}" placeholder="e.g. 3.5" />
+      <div class="form-hint">Savings/investment only</div>
+    </div>
+    <div class="form-group">
+      <label class="form-label">Color</label>
+      ${colorSwatchesHtml('af-color')}
+      <input class="form-input" type="color" id="af-color" value="${acc?.color || '#22c55e'}" style="height:38px;padding:2px 4px" />
     </div>
     <div id="af-error" class="form-error hidden"></div>
     <div class="btn-row">

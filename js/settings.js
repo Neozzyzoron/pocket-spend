@@ -859,6 +859,10 @@ export function openCategoryModal(state, cat = null, parentGroup = null) {
 
   const html = `<form id="cat-form">
     ${isSub ? `<div class="form-hint" style="margin-bottom:1rem">Subcategory of: <strong>${escHtml(parent?.name || '?')}</strong></div>` : ''}
+    <div class="form-group">
+      <label class="form-label">Name *</label>
+      <input class="form-input" id="cf-name" value="${escHtml(cat?.name || '')}" placeholder="Category name" />
+    </div>
     <div class="form-row">
       <div class="form-group" style="flex:0 0 70px">
         <label class="form-label">Icon</label>
@@ -872,10 +876,6 @@ export function openCategoryModal(state, cat = null, parentGroup = null) {
         <input type="hidden" id="cf-icon" value="${escHtml(cat?.icon || '')}" />
       </div>
       <div class="form-group" style="flex:1">
-        <label class="form-label">Name *</label>
-        <input class="form-input" id="cf-name" value="${escHtml(cat?.name || '')}" placeholder="Category name" />
-      </div>
-      <div class="form-group" style="flex:0 0 60px">
         <label class="form-label">Color</label>
         <input type="color" class="form-input" id="cf-color" value="${cat?.color || '#22c55e'}" style="height:38px;padding:2px 4px" />
       </div>
@@ -883,17 +883,17 @@ export function openCategoryModal(state, cat = null, parentGroup = null) {
     ${buildIconPickerHtml()}
     ${colorSwatchesHtml('cf-color')}
     <div class="form-group">
-      <label class="form-label">Nature</label>
-      <select class="form-select" id="cf-nature">
-        <option value="">—</option>
-        ${NATURES.map(n => `<option value="${n}"${cat?.nature === n ? ' selected' : ''}>${n}</option>`).join('')}
-      </select>
-    </div>
-    <div class="form-group">
       <label class="form-label">Default transaction type</label>
       <select class="form-select" id="cf-tx-type">
         <option value="">—</option>
         ${TX_FORM_TYPES.map(([k,v]) => `<option value="${k}"${cat?.default_tx_type === k ? ' selected' : ''}>${v}</option>`).join('')}
+      </select>
+    </div>
+    <div class="form-group">
+      <label class="form-label">Nature</label>
+      <select class="form-select" id="cf-nature">
+        <option value="">—</option>
+        ${NATURES.map(n => `<option value="${n}"${cat?.nature === n ? ' selected' : ''}>${n}</option>`).join('')}
       </select>
     </div>
     <div id="cf-error" class="form-error hidden"></div>

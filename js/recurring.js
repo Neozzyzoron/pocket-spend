@@ -313,10 +313,8 @@ function openTemplateModal(state, tmpl = null) {
         <select class="form-select" id="tf2-cat">${catOpts}</select>
       </div>
       <div class="form-group" style="flex:1">
-        <label class="form-label">Type *</label>
-        <select class="form-select" id="tf2-type">
-          ${TX_FORM_TYPES.map(([k,v]) => `<option value="${k}"${defaultType===k?' selected':''}>${v}</option>`).join('')}
-        </select>
+        <label class="form-label">Amount *</label>
+        <input class="form-input text-mono" type="number" id="tf2-amount" step="0.01" min="0.01" value="${tmpl?.amount || ''}" />
       </div>
     </div>
     <div class="form-row">
@@ -324,12 +322,8 @@ function openTemplateModal(state, tmpl = null) {
         <label class="form-label">Description *</label>
         <input class="form-input" id="tf2-desc" value="${escHtml(tmpl?.description || '')}" placeholder="e.g. Netflix" />
       </div>
-      <div class="form-group" style="flex:1">
-        <label class="form-label">Amount *</label>
-        <input class="form-input text-mono" type="number" id="tf2-amount" step="0.01" min="0.01" value="${tmpl?.amount || ''}" />
-      </div>
+      <div class="form-group" style="flex:1" id="tf2-account-fields"></div>
     </div>
-    <div id="tf2-account-fields"></div>
     <div class="form-row">
       <div class="form-group" style="flex:1">
         <label class="form-label">Frequency *</label>
@@ -353,9 +347,17 @@ function openTemplateModal(state, tmpl = null) {
         </select>
       </div>
     </div>
-    <div class="form-group">
-      <label class="form-label">Start date *</label>
-      <input class="form-input" type="date" id="tf2-start" value="${tmpl?.start_date || todayISO()}" />
+    <div class="form-row">
+      <div class="form-group" style="flex:1">
+        <label class="form-label">Start date *</label>
+        <input class="form-input" type="date" id="tf2-start" value="${tmpl?.start_date || todayISO()}" />
+      </div>
+      <div class="form-group" style="flex:1">
+        <label class="form-label">Type *</label>
+        <select class="form-select" id="tf2-type">
+          ${TX_FORM_TYPES.map(([k,v]) => `<option value="${k}"${defaultType===k?' selected':''}>${v}</option>`).join('')}
+        </select>
+      </div>
     </div>
     <div class="form-group">
       <label class="form-label">Notes</label>
@@ -418,9 +420,19 @@ function renderTmplAccountFields(state, tmpl = null) {
   const fromFilter = type === 'withdrawal' ? a => ['savings','investment'].includes(effectiveType(a)) : null;
 
   if (hasTwoAccounts) {
+    // Two accounts: break out of the inline column, render full-width below via a sibling row
+    container.innerHTML = '';
+    container.style.display = 'none';
+    let twoRow = document.getElementById('tf2-two-account-row');
+    if (!twoRow) {
+      twoRow = document.createElement('div');
+      twoRow.id = 'tf2-two-account-row';
+      twoRow.className = 'form-row';
+      container.closest('.form-row').insertAdjacentElement('afterend', twoRow);
+    }
     const fromOpts = buildAccountOptions(accounts, order, fromFilter, tmpl?.account_id);
     const toOpts = buildAccountOptions(accounts, order, toFilter, tmpl?.to_account_id);
-    container.innerHTML = `<div class="form-row">
+    twoRow.innerHTML = `
       <div class="form-group" style="flex:1">
         <label class="form-label">From account</label>
         <select class="form-select" id="tf2-acc">${fromOpts}</select>
@@ -428,14 +440,13 @@ function renderTmplAccountFields(state, tmpl = null) {
       <div class="form-group" style="flex:1">
         <label class="form-label">To account</label>
         <select class="form-select" id="tf2-to-acc">${toOpts}</select>
-      </div>
-    </div>`;
+      </div>`;
   } else {
-    const label = type === 'income' ? 'Account' : 'Account';
-    container.innerHTML = `<div class="form-group">
-      <label class="form-label">${label}</label>
-      <select class="form-select" id="tf2-acc">${buildAccountOptions(accounts, order, null, tmpl?.account_id)}</select>
-    </div>`;
+    document.getElementById('tf2-two-account-row')?.remove();
+    container.style.display = '';
+    container.innerHTML = `
+      <label class="form-label">Account</label>
+      <select class="form-select" id="tf2-acc">${buildAccountOptions(accounts, order, null, tmpl?.account_id)}</select>`;
   }
 }
 
