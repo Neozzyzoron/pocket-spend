@@ -46,37 +46,35 @@ export function render(state) {
     </div>
 
     <!-- Period label -->
-    <div style="margin-bottom:.6rem">
-      <span class="text-sm text-muted">${period.label}</span>
-    </div>
+    <div class="text-sm text-muted" style="margin-bottom:.6rem">${period.label}</div>
 
     <!-- Summary cards -->
-    <div class="stat-grid" style="grid-template-columns:repeat(auto-fill,minmax(170px,1fr))">
-      <div class="card card-sm">
-        <div class="card-title text-muted text-sm">Recurring Income</div>
-        <div class="card-value text-mono c-green">${fmtCurrency(expected.income, cur)}</div>
+    <div class="stat-grid" style="grid-template-columns:repeat(4,1fr)">
+      <div class="card card-sm" style="border-left:3px solid var(--green)">
+        <div class="card-title text-sm" style="color:var(--green)">Recurring Income</div>
+        <div class="card-value text-mono" style="color:var(--green)">${fmtCurrency(expected.income, cur)}</div>
       </div>
-      <div class="card card-sm">
-        <div class="card-title text-muted text-sm">Recurring Spend</div>
-        <div class="card-value text-mono c-red">${fmtCurrency(expected.spend + expected.debt, cur)}</div>
-        <div style="margin-top:.35rem;display:flex;flex-direction:column;gap:.15rem">
+      <div class="card card-sm" style="border-left:3px solid var(--red)">
+        <div class="card-title text-sm" style="color:var(--red)">Recurring Spend</div>
+        <div class="card-value text-mono" style="color:var(--red)">${fmtCurrency(expected.spend + expected.debt, cur)}</div>
+        <div style="margin-top:.5rem;padding-top:.4rem;border-top:1px solid var(--border);display:flex;flex-direction:column;gap:.15rem">
           <div class="text-sm" style="display:flex;justify-content:space-between;gap:.5rem">
             <span class="text-muted">Direct spend</span>
             <span class="text-mono">${fmtCurrency(expected.spend, cur)}</span>
           </div>
           <div class="text-sm" style="display:flex;justify-content:space-between;gap:.5rem">
-            <span class="text-muted">Debt payments</span>
+            <span class="text-muted">Debt pmts</span>
             <span class="text-mono">${fmtCurrency(expected.debt, cur)}</span>
           </div>
         </div>
       </div>
-      <div class="card card-sm">
-        <div class="card-title text-muted text-sm">Recurring Savings &amp; Investments</div>
-        <div class="card-value text-mono c-blue">${fmtCurrency(expected.si, cur)}</div>
+      <div class="card card-sm" style="border-left:3px solid var(--blue)">
+        <div class="card-title text-sm" style="color:var(--blue)">Savings &amp; Investments</div>
+        <div class="card-value text-mono" style="color:var(--blue)">${fmtCurrency(expected.si, cur)}</div>
       </div>
-      <div class="card card-sm">
-        <div class="card-title text-muted text-sm">Due not yet logged</div>
-        <div class="card-value text-mono ${dueNotLogged > 0 ? 'c-amber' : ''}">${fmtCurrency(dueNotLogged, cur)}</div>
+      <div class="card card-sm" style="border-left:3px solid var(--amber)">
+        <div class="card-title text-sm" style="color:var(--amber)">Due not yet logged</div>
+        <div class="card-value text-mono" style="color:var(--amber)">${fmtCurrency(dueNotLogged, cur)}</div>
       </div>
     </div>
 
