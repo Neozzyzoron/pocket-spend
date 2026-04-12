@@ -135,8 +135,6 @@ function computeStats(state, period) {
   const total_expenses = direct_spend + debt_payments;
   // keep legacy aliases
   const spending     = direct_spend;
-  const saved        = sum('savings');
-  const invested     = sum('investment');
   const withdrawn    = sum('withdrawal');
 
   const activeAcc = accounts.filter(a => !a.is_archived && !a.is_excluded);
@@ -157,9 +155,23 @@ function computeStats(state, period) {
   const savingsAccIds = new Set(activeAcc.filter(a => effectiveType(a) === 'savings').map(a => a.id));
   const investAccIds  = new Set(activeAcc.filter(a => effectiveType(a) === 'investment').map(a => a.id));
 
-  const savings_withdrawn    = periodTx.filter(tx => tx.type === 'withdrawal' && savingsAccIds.has(tx.account_id))
+  const sumTo = (ids) => periodTx
+    .filter(tx => tx.type === 'transfer' && ids.has(tx.to_account_id))
     .reduce((s, tx) => s + Number(tx.amount), 0);
-  const investment_withdrawn = periodTx.filter(tx => tx.type === 'withdrawal' && investAccIds.has(tx.account_id))
+  const sumFrom = (ids) => periodTx
+    .filter(tx => tx.type === 'transfer' && ids.has(tx.account_id))
+    .reduce((s, tx) => s + Number(tx.amount), 0);
+
+  // Contributions: type='savings'/'investment' + transfers INTO those accounts
+  const saved    = sum('savings')    + sumTo(savingsAccIds);
+  const invested = sum('investment') + sumTo(investAccIds);
+
+  // Withdrawals: type='withdrawal' from those accounts + transfers OUT of those accounts
+  const savings_withdrawn    = periodTx
+    .filter(tx => (tx.type === 'withdrawal' || tx.type === 'transfer') && savingsAccIds.has(tx.account_id))
+    .reduce((s, tx) => s + Number(tx.amount), 0);
+  const investment_withdrawn = periodTx
+    .filter(tx => (tx.type === 'withdrawal' || tx.type === 'transfer') && investAccIds.has(tx.account_id))
     .reduce((s, tx) => s + Number(tx.amount), 0);
 
   const pending = transactions.filter(tx =>
