@@ -538,9 +538,9 @@ function expandInlineEdit(tx, state, cur) {
     const date = parseDateInput(document.getElementById('ie-date')?.value);
     const description = document.getElementById('ie-desc')?.value.trim();
     const category_id = document.getElementById('ie-cat')?.value || null;
-    const type = resolveType(document.getElementById('ie-type')?.value, account_id, to_account_id, state.accounts);
     const account_id = document.getElementById('ie-acc')?.value || null;
     const to_account_id = document.getElementById('ie-to-acc')?.value || null;
+    const type = resolveType(document.getElementById('ie-type')?.value, account_id, to_account_id, state.accounts);
     const amount = parseFloat(document.getElementById('ie-amt')?.value);
     const user_id = document.getElementById('ie-person')?.value || tx.user_id;
     const status = document.getElementById('ie-status')?.value || tx.status;
