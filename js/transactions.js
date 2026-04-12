@@ -312,8 +312,10 @@ function renderTable(state) {
       const id = btn.dataset.id;
       const ok = await App.openConfirm('Delete transaction', 'This cannot be undone.');
       if (!ok) return;
+      const tx = state.transactions.find(t => t.id === id);
       const { error } = await App.supabase.from('transactions').delete().eq('id', id).eq('household_id', App.state.household.id);
       if (!error) {
+        if (tx) await recordRecurringSkips([tx]);
         state.transactions = state.transactions.filter(t => t.id !== id);
         renderTable(state);
         App.toast('Transaction deleted', 'success');
@@ -595,14 +597,32 @@ function openColumnsModal(state) {
   });
 }
 
+// ── RECURRING SKIP LIST ───────────────────────────────────────
+// When a recurring-linked transaction is deleted, record the skip so
+// processRecurringDue doesn't re-insert it on next boot.
+async function recordRecurringSkips(txs) {
+  const toSkip = txs
+    .filter(t => t.recurring_template_id)
+    .map(t => ({ template_id: t.recurring_template_id, date: t.date }));
+  if (!toSkip.length) return;
+  const current = App.state.settings?.skipped_recurring || [];
+  const updated = [...current, ...toSkip];
+  const { error } = await App.supabase.from('household_settings')
+    .update({ skipped_recurring: updated })
+    .eq('household_id', App.state.household.id);
+  if (!error && App.state.settings) App.state.settings.skipped_recurring = updated;
+}
+
 // ── BULK DELETE ───────────────────────────────────────────────
 async function bulkDelete(state) {
   if (!selectedIds.size) return;
   const ok = await App.openConfirm('Delete transactions', `Delete ${selectedIds.size} transaction(s)? This cannot be undone.`);
   if (!ok) return;
   const ids = [...selectedIds];
+  const txsToDelete = state.transactions.filter(t => ids.includes(t.id));
   const { error } = await App.supabase.from('transactions').delete().in('id', ids).eq('household_id', App.state.household.id);
   if (!error) {
+    await recordRecurringSkips(txsToDelete);
     state.transactions = state.transactions.filter(t => !ids.includes(t.id));
     selectedIds.clear();
     render(state);

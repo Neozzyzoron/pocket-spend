@@ -296,6 +296,10 @@ async function processRecurringDue() {
       .filter(tx => tx.recurring_template_id)
       .map(tx => `${tx.recurring_template_id}|${tx.date}`)
   );
+  // Build skipped set: occurrences deliberately deleted by the user
+  const skipped = new Set(
+    (state.settings?.skipped_recurring || []).map(s => `${s.template_id}|${s.date}`)
+  );
 
   const toInsert = [];
 
@@ -307,7 +311,7 @@ async function processRecurringDue() {
 
     for (const dueDate of dueDates) {
       const key = `${tmpl.id}|${toISO(dueDate)}`;
-      if (existing.has(key)) continue;
+      if (existing.has(key) || skipped.has(key)) continue;
 
       toInsert.push({
         household_id: tmpl.household_id,
